@@ -15,14 +15,16 @@
 #include <array>
 
 GLuint meshes_for_lit_color_texture_program = 0;
-Load< MeshBuffer > meshes(LoadTagDefault, []() -> MeshBuffer const * {
+Load<MeshBuffer> meshes(LoadTagDefault, []() -> MeshBuffer const *
+						{
 	MeshBuffer const *ret = new MeshBuffer(data_path("flieger-war.pnct"));
 	meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
-	return ret;
-});
+	return ret; });
 
-static void add_drawable(Scene &scene, Scene::Transform *transform, std::string const &mesh_name) {
-	if (mesh_name.ends_with("_BoundingBox")) return;
+static void add_drawable(Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
+{
+	if (mesh_name.ends_with("_BoundingBox"))
+		return;
 	Mesh const &mesh = meshes->lookup(mesh_name);
 	scene.drawables.emplace_back(transform);
 	Scene::Drawable &drawable = scene.drawables.back();
@@ -33,16 +35,21 @@ static void add_drawable(Scene &scene, Scene::Transform *transform, std::string 
 	drawable.pipeline.count = mesh.count;
 }
 
-Load< Scene > room_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("room.scene"), add_drawable); });
-Load< Scene > fly_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("fly.scene"), add_drawable); });
-Load< Scene > player_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("player.scene"), add_drawable); });
+Load<Scene> room_scene(LoadTagDefault, []() -> Scene const *
+					   { return new Scene(data_path("room.scene"), add_drawable); });
+Load<Scene> fly_scene(LoadTagDefault, []() -> Scene const *
+					  { return new Scene(data_path("fly.scene"), add_drawable); });
+Load<Scene> player_scene(LoadTagDefault, []() -> Scene const *
+						 { return new Scene(data_path("player.scene"), add_drawable); });
 
 PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene)
 {
 	for (auto &t : fly.transforms)
-		if (t.name == "Fly") fly_root = &t;
+		if (t.name == "Fly")
+			fly_root = &t;
 	for (auto &t : player.transforms)
-		if (t.name == "Player") player_root = &t;
+		if (t.name == "Player")
+			player_root = &t;
 	fly.cameras.front().transform->parent = fly_root;
 	player.cameras.front().transform->parent = player_root;
 }
@@ -326,7 +333,8 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	scene.draw(world_to_clip);
 	for (auto const &p : game.players)
 	{
-		if (!p.alive || (&p == &me && p.role == Role::Human)) continue;
+		if (!p.alive || (&p == &me && p.role == Role::Human))
+			continue;
 		place(p).draw(world_to_clip);
 	}
 
