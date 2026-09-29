@@ -18,6 +18,8 @@ enum class Message : uint8_t {
 	//...
 };
 
+enum class Role : uint8_t {Fly, Human};
+
 //used to represent a control input:
 struct Button {
 	uint8_t downs = 0; //times the button has been pressed
@@ -28,7 +30,7 @@ struct Button {
 struct Player {
 	//player inputs (sent from client):
 	struct Controls {
-		Button left, right, up, down, jump;
+		Button left, right, up, down, swat;
 
 		void send_controls_message(Connection *connection) const;
 
@@ -38,12 +40,25 @@ struct Player {
 		bool recv_controls_message(Connection *connection);
 	} controls;
 
+	Role role = Role::Human;
+
 	//player state (sent from server):
-	glm::vec2 position = glm::vec2(0.0f, 0.0f);
-	glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
+	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 velocity = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 	std::string name = "";
+	uint32_t id = 0;
+
+	float vert = 0.0f;
+	float horiz = 0.0f;
+
+	// Fly Specific Variables
+	bool alive = true;
+
+	// Human Specific Variables
+	float swat_time = 0.0f;
+	float swat_cooldown = 0.0f;
 };
 
 struct Game {
@@ -53,6 +68,11 @@ struct Game {
 
 	std::mt19937 mt; //used for spawning players
 	uint32_t next_player_number = 1; //used for naming players
+
+	int flies_remaining = 0;
+	float time = 0.0f;
+	float timeLimit = 300.0f;
+	bool humanWon = false;
 
 	Game();
 
@@ -64,14 +84,19 @@ struct Game {
 	inline static constexpr float Tick = 1.0f / 30.0f;
 
 	//arena size:
-	inline static constexpr glm::vec2 ArenaMin = glm::vec2(-0.75f, -1.0f);
-	inline static constexpr glm::vec2 ArenaMax = glm::vec2( 0.75f,  1.0f);
+	inline static constexpr glm::vec3 ArenaMin = glm::vec3(-0.75f, -1.0f, -10.0f);
+	inline static constexpr glm::vec3 ArenaMax = glm::vec3( 0.75f,  1.0f, 10.0f);
 
-	//player constants:
-	inline static constexpr float PlayerRadius = 0.06f;
-	inline static constexpr float PlayerSpeed = 2.0f;
-	inline static constexpr float PlayerAccelHalflife = 0.25f;
-	
+	//Human constants:
+	inline static constexpr float HumanRadius = 0.1f;
+	inline static constexpr float HumanSpeed = 8.0f;
+	inline static constexpr float HumanAccelHalflife = 0.2f;
+
+	//Fly constants:
+	inline static constexpr float FlyRadius = 0.03f;
+	inline static constexpr float FlySpeed = 10.0f;
+	inline static constexpr float FlyAccelHalflife = 0.25f;
+
 
 	//---- communication helpers ----
 
