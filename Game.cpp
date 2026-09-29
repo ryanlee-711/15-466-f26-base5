@@ -2,6 +2,7 @@
 
 #include "Connection.hpp"
 
+#include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -13,7 +14,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	assert(connection_);
 	auto &connection = *connection_;
 
-	uint32_t size = 5;
+	uint32_t size = 13;
 	connection.send(Message::C2S_Controls);
 	connection.send(uint8_t(size));
 	connection.send(uint8_t(size >> 8));
@@ -31,6 +32,8 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	send_button(up);
 	send_button(down);
 	send_button(swat);
+	connection.send(horiz);
+	connection.send(vert);
 }
 
 bool Player::Controls::recv_controls_message(Connection *connection_) {
@@ -45,7 +48,7 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	uint32_t size = (uint32_t(recv_buffer[3]) << 16)
 	              | (uint32_t(recv_buffer[2]) << 8)
 	              |  uint32_t(recv_buffer[1]);
-	if (size != 5) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 5!");
+	if (size != 13) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 13!");
 
 	//expecting complete message:
 	if (recv_buffer.size() < 4 + size) return false;
@@ -65,6 +68,8 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	recv_button(recv_buffer[4+2], &up);
 	recv_button(recv_buffer[4+3], &down);
 	recv_button(recv_buffer[4+4], &swat);
+	std::memcpy(&horiz, &recv_buffer[4+5], sizeof(float));
+	std::memcpy(&vert, &recv_buffer[4+9], sizeof(float));
 
 	//delete message from buffer:
 	recv_buffer.erase(recv_buffer.begin(), recv_buffer.begin() + 4 + size);
@@ -87,12 +92,12 @@ Player *Game::spawn_player() {
 		//random point in the middle area of the arena: FIX ONCE MAP IS MADE
 		player.position.x = glm::mix(ArenaMin.x + 2.0f * HumanRadius, ArenaMax.x - 2.0f * HumanRadius, 0.4f + 0.2f * mt() / float(mt.max()));
 		player.position.y = glm::mix(ArenaMin.y + 2.0f * HumanRadius, ArenaMax.y - 2.0f * HumanRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.z = 0.0f;
+		player.position.z = ArenaMin.z;
 		player.role = Role::Human;
 	} else {
 		player.position.x = glm::mix(ArenaMin.x + 2.0f * FlyRadius, ArenaMax.x - 2.0f * FlyRadius, 0.4f + 0.2f * mt() / float(mt.max()));
 		player.position.y = glm::mix(ArenaMin.y + 2.0f * FlyRadius, ArenaMax.y - 2.0f * FlyRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.z = 5.0f;
+		player.position.z = 1.2f;
 		player.role = Role::Fly;
 		flies_remaining++;
 	}
@@ -132,41 +137,82 @@ void Game::update(float elapsed) {
 	//position/velocity update:
 	for (auto &p : players) {
 		glm::vec3 dir = glm::vec3(0.0f, 0.0f, 0.0f);
-		if (p.controls.left.pressed) dir.x -= 1.0f;
-		if (p.controls.right.pressed) dir.x += 1.0f;
-		if (p.controls.down.pressed) dir.y -= 1.0f;
-		if (p.controls.up.pressed) dir.y += 1.0f;
 
-		float playerSpeed, playerAccelHalflife;
+		// First person movement for Humans
 		if (p.role == Role::Human) {
-			playerSpeed = HumanSpeed;
-			playerAccelHalflife = HumanAccelHalflife;
-		} else {
-			playerSpeed = FlySpeed;
-			playerAccelHalflife = FlyAccelHalflife;
-		}
+			p.horiz = p.controls.horiz;
+			p.vert = p.controls.vert;
 
-		if (dir == glm::vec3(0.0f)) {
-			//no inputs: just drift to a stop
-			float amt = 1.0f - std::pow(0.5f, elapsed / (playerAccelHalflife * 2.0f));
-			p.velocity = glm::mix(p.velocity, glm::vec3(0.0f), amt);
-		} else {
-			//inputs: tween velocity to target direction
-			dir = glm::normalize(dir);
+			glm::vec2 move = glm::vec2(0.0f);
+			if (p.controls.left.pressed) move.x -= 1.0f;
+			if (p.controls.right.pressed) move.x += 1.0f;
+			if (p.controls.down.pressed) move.y -= 1.0f;
+			if (p.controls.up.pressed) move.y += 1.0f;
 
-			float amt = 1.0f - std::pow(0.5f, elapsed / playerAccelHalflife);
+			if (move != glm::vec2(0.0f)) move = glm::normalize(move);
 
-			//accelerate along velocity (if not fast enough):
-			float along = glm::dot(p.velocity, dir);
-			glm::vec3 perp = p.velocity - along * dir;
-			if (along < playerSpeed) {
-				along = glm::mix(along, playerSpeed, amt);
+			glm::vec3 forward = glm::vec3(-std::sin(p.horiz), std::cos(p.horiz), 0.0f);
+			glm::vec3 right   = glm::vec3( std::cos(p.horiz), std::sin(p.horiz), 0.0f);
+
+			dir += move.x * right + move.y * forward;
+			p.velocity.z = 0;
+			p.position.z = ArenaMin.z;
+
+			if (dir == glm::vec3(0.0f)) {
+				//no inputs: just drift to a stop
+				float amt = 1.0f - std::pow(0.5f, elapsed / (HumanAccelHalflife * 2.0f));
+				p.velocity = glm::mix(p.velocity, glm::vec3(0.0f), amt);
+			} else {
+				//inputs: tween velocity to target direction
+				dir = glm::normalize(dir);
+
+				float amt = 1.0f - std::pow(0.5f, elapsed / HumanAccelHalflife);
+
+				//accelerate along velocity (if not fast enough):
+				float along = glm::dot(p.velocity, dir);
+				glm::vec3 perp = p.velocity - along * dir;
+				if (along < HumanSpeed) {
+					along = glm::mix(along, HumanSpeed, amt);
+				}
+
+				//damp perpendicular velocity:
+				perp = glm::mix(perp, glm::vec3(0.0f), amt);
+				p.velocity = along * dir + perp;
 			}
-
-			//damp perpendicular velocity:
-			perp = glm::mix(perp, glm::vec3(0.0f), amt);
-			p.velocity = along * dir + perp;
 		}
+		// Third Person movement for Flies
+		else {
+			float vertIn = 0.0f;
+			float horizIn = 0.0f;
+			if (p.controls.left.pressed) horizIn += 1.0f;
+			if (p.controls.right.pressed) horizIn -= 1.0f;
+			if (p.controls.down.pressed) vertIn -= 1.0f;
+			if (p.controls.up.pressed) vertIn += 1.0f;
+
+			p.vert += vertIn * VertRate * elapsed;
+			p.horiz += horizIn * HorizRate * elapsed;
+			if (vertIn == 0.0f) {
+				//no inputs: just drift to a stop vertically
+				float amt = 1.0f - std::pow(0.5f, elapsed / (FlyAccelHalflife * 2.0f));
+				p.vert = glm::mix(p.vert, 0.0f, amt);
+			}
+			p.vert = glm::clamp(p.vert, -1.0f, 1.0f);
+
+			float turning = std::min(1.0f, std::abs(horizIn) + std::abs(vertIn));
+			float next_speed = FlySpeed - turning * (FlySpeed - TurnSpeed);
+			next_speed -= std::sin(p.vert) * 0.6f * FlySpeed;
+			float rate = Accel;
+			if (next_speed < p.speed) rate = Decel;
+			p.speed += (next_speed - p.speed) * std::min(1.0f, rate * elapsed);
+
+			float newTurnDip = -horizIn * 0.6f;
+			p.turnDip += (newTurnDip - p.turnDip) * std::min(1.0f, 4.0f * elapsed);
+
+			glm::quat rot = glm::angleAxis(p.horiz, glm::vec3(0,0,1)) * glm::angleAxis(p.vert,  glm::vec3(1,0,0)) * glm::angleAxis(p.turnDip, glm::vec3(0,1,0));
+			glm::vec3 forward = rot * glm::vec3(0.0f, 1.0f, 0.0f);
+			p.velocity = forward * p.speed;
+		}
+
 		p.position += p.velocity * elapsed;
 
 		//reset 'downs' since controls have been handled:
@@ -185,6 +231,7 @@ void Game::update(float elapsed) {
 		else p1Rad = FlyRadius;
 		for (auto &p2 : players) {
 			if (&p1 == &p2) break;
+			if (p1.role != p2.role) continue;
 			glm::vec3 p12 = p2.position - p1.position;
 			float len2 = glm::length2(p12);
 			float p2Rad;
@@ -216,15 +263,16 @@ void Game::update(float elapsed) {
 			p1.position.y = ArenaMax.y - p1Rad;
 			p1.velocity.y =-std::abs(p1.velocity.y);
 		}
-		if (p1.position.z < ArenaMin.z + p1Rad) {
-			p1.position.z = ArenaMin.z + p1Rad;
-			p1.velocity.z = std::abs(p1.velocity.z);
+		if (p1.role == Role::Fly) {
+			if (p1.position.z < ArenaMin.z + p1Rad) {
+				p1.position.z = ArenaMin.z + p1Rad;
+				p1.velocity.z = std::abs(p1.velocity.z);
+			}
+			if (p1.position.z > ArenaMax.z - p1Rad) {
+				p1.position.z = ArenaMax.z - p1Rad;
+				p1.velocity.z =-std::abs(p1.velocity.z);
+			}
 		}
-		if (p1.position.z > ArenaMax.z - p1Rad) {
-			p1.position.z = ArenaMax.z - p1Rad;
-			p1.velocity.z =-std::abs(p1.velocity.z);
-		}
-
 	}
 
 }
@@ -258,6 +306,8 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 		connection.send(player.id);
 		connection.send(player.vert);
 		connection.send(player.horiz);
+		connection.send(player.speed);
+		connection.send(player.turnDip);
 		connection.send(player.alive);
 		connection.send(player.swat_time);
 	};
@@ -332,6 +382,8 @@ bool Game::recv_state_message(Connection *connection_) {
 		read(&player.id);
 		read(&player.vert);
 		read(&player.horiz);
+		read(&player.speed);
+		read(&player.turnDip);
 		read(&player.alive);
 		read(&player.swat_time);
 	}
