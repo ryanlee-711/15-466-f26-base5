@@ -29,10 +29,10 @@ $(DIST)/flieger-war.pnct : flieger-war.blend $(EXPORT_MESHES)
 	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<' '$@'
 
 $(DIST)/room.scene : flieger-war.blend $(EXPORT_SCENE)
-	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Graphics '$@'
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Basement_Graphics '$@'
 
 $(DIST)/collision.scene : flieger-war.blend $(EXPORT_SCENE)
-	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Collision '$@'
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Basement_Collision '$@'
 
 $(DIST)/fly.scene : flieger-war.blend $(EXPORT_SCENE)
 	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Fly '$@'

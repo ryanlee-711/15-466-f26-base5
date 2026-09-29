@@ -210,6 +210,30 @@ void Game::update(float elapsed) {
 		}
 		return;
 	}
+	for (auto &p : players) {
+		p.swat_time = std::max(0.0f, p.swat_time - elapsed);
+		p.swat_cooldown = std::max(0.0f, p.swat_cooldown - elapsed);
+		if (p.role != Role::Human) continue;
+		if (!p.controls.space.downs || p.swat_cooldown > 0.0f) continue;
+		p.swat_time = SwatDuration;
+		p.swat_cooldown = SwatCooldown;
+		glm::quat yaw = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
+		glm::quat look = yaw * glm::angleAxis(p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
+		glm::vec3 eye = p.position + yaw * SwatEye;
+		glm::vec3 forward = look * glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 right = look * glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 up = look * glm::vec3(0.0f, 0.0f, 1.0f);
+		for (auto &f : players) {
+			if (f.role != Role::Fly || !f.alive) continue;
+			glm::vec3 d = f.position - eye;
+			if (glm::dot(d, forward) < 0.0f || glm::dot(d, forward) > SwatReach) continue;
+			if (std::abs(glm::dot(d, right)) > SwatHalfSize || std::abs(glm::dot(d, up)) > SwatHalfSize) continue;
+			f.alive = false;
+			f.dead_at = glm::vec3(f.position.x, f.position.y, FlyRadius);
+			flies_remaining--;
+			if (flies_remaining == 0) humanWon = true;
+		}
+	}
 	//position/velocity update:
 	for (auto &p : players) {
 		glm::vec3 dir = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -336,6 +360,9 @@ void Game::update(float elapsed) {
 		p1.position = center - up;
 	}
 
+	for (auto &p : players) {
+		if (!p.alive) p.position = p.dead_at;
+	}
 }
 
 

@@ -66,6 +66,7 @@ struct Player {
 	// Human Specific Variables
 	float swat_time = 0.0f;
 	float swat_cooldown = 0.0f;
+	glm::vec3 dead_at = glm::vec3(0.0f);
 };
 
 struct Game {
@@ -114,6 +115,12 @@ struct Game {
 	inline static constexpr float Decel = 3.0f;
 	inline static constexpr float HorizRate = 2.5f;
 	inline static constexpr float VertRate = 1.5f;
+
+	inline static constexpr float SwatDuration = 0.4f;
+	inline static constexpr float SwatCooldown = 1.0f;
+	inline static constexpr float SwatReach = 1.5f;
+	inline static constexpr float SwatHalfSize = 0.3f;
+	inline static constexpr glm::vec3 SwatEye = glm::vec3(0.0f, 0.26f, 1.88f);
 
 
 	//---- communication helpers ----

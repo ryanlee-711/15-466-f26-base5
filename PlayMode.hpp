@@ -41,6 +41,8 @@ struct PlayMode : Mode {
 	Scene fly, player;
 	Scene::Transform *fly_root = nullptr;
 	Scene::Transform *player_root = nullptr;
+	Scene::Transform *arm = nullptr;
+	glm::quat arm_base;
 	glm::vec3 fly_cam_offset;
 	glm::quat fly_cam_rotation;
 

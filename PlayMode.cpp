@@ -23,7 +23,7 @@ Load<MeshBuffer> meshes(LoadTagDefault, []() -> MeshBuffer const *
 
 static void add_drawable(Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
 {
-	if (mesh_name.ends_with("_BoundingBox"))
+	if (mesh_name.find("_BoundingBox") != std::string::npos)
 		return;
 	Mesh const &mesh = meshes->lookup(mesh_name);
 	scene.drawables.emplace_back(transform);
@@ -48,11 +48,17 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 		if (t.name == "Fly")
 			fly_root = &t;
 	for (auto &t : player.transforms)
+	{
 		if (t.name == "Player")
 			player_root = &t;
+		if (t.name == "Arm_R")
+			arm = &t;
+	}
+	arm_base = arm->rotation;
 	fly_cam_offset = fly.cameras.front().transform->position;
 	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
+	player.cameras.front().fovy = glm::radians(70.0f);
 }
 
 PlayMode::~PlayMode()
@@ -307,6 +313,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			player_root->position = p.position;
 			player_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
 			player.cameras.front().transform->rotation = glm::angleAxis(glm::radians(90.0f) + p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
+			arm->rotation = glm::angleAxis(glm::radians(360.0f) * p.swat_time / Game::SwatDuration, glm::vec3(1.0f, 0.0f, 0.0f)) * arm_base;
 			return player;
 		}
 		fly_root->position = p.position;
@@ -338,9 +345,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	scene.draw(world_to_clip);
 	for (auto const &p : game.players)
 	{
-		if (!p.alive || (&p == &me && p.role == Role::Human))
-			continue;
-		place(p).draw(world_to_clip);
+		Scene &model = place(p);
+		if (!p.alive)
+			fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		model.draw(world_to_clip);
 	}
 
 	GL_ERRORS();
