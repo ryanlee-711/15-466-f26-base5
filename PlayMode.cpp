@@ -144,8 +144,19 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.fly.downs += 1;
 		else if (screen == Lobby && row == 5)
 			controls.human.downs += 1;
-		else if (screen == Lobby && row == 6)
+		else if (screen == Lobby && row == 7)
+		{
+			try
+			{
+				// timeInput clamped to 3 characters so this shouldn't overflow
+				controls.timeLimit = glm::clamp(std::stoi(timeInput), 30, 300);
+			}
+			catch (...)
+			{
+				// Do nothing if conversion fails
+			}
 			controls.start.downs += 1;
+		}
 		return true;
 	}
 	if (screen == Join && evt.type == SDL_EVENT_KEY_DOWN)
@@ -166,6 +177,15 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			}
 		}
 		return true;
+	}
+
+	// Check server -- only host can set time limit
+	if (screen == Lobby && server && evt.type == SDL_EVENT_KEY_DOWN)
+	{
+		if (evt.key.key == SDLK_BACKSPACE && !timeInput.empty())
+			timeInput.pop_back();
+		else if (evt.key.key >= SDLK_0 && evt.key.key <= SDLK_9 && timeInput.length() < 3)
+			timeInput += char(evt.key.key);
 	}
 
 	if (evt.type == SDL_EVENT_KEY_DOWN)
@@ -486,8 +506,14 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			row(3, std::string("You are: ") + (game.players.front().role == Role::Fly ? "Fly" : "Human"));
 			row(4, "Be Fly");
 			row(5, "Be Human");
-			if (server && game.count(Role::Fly) >= 1 && game.count(Role::Human) >= 1)
-				row(6, "Start Game");
+			if (server)
+			{
+				row(6, "Enter time limit (default 200): " + timeInput + "_");
+				if (game.count(Role::Fly) >= 1 && game.count(Role::Human) >= 1)
+				{
+					row(7, "Start Game");
+				}
+			}
 		}
 		GL_ERRORS();
 		return;

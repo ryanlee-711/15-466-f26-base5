@@ -41,7 +41,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const
 	assert(connection_);
 	auto &connection = *connection_;
 
-	uint32_t size = 17;
+	uint32_t size = 21;
 	connection.send(Message::C2S_Controls);
 	connection.send(uint8_t(size));
 	connection.send(uint8_t(size >> 8));
@@ -67,6 +67,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const
 	send_button(start);
 	connection.send(horiz);
 	connection.send(vert);
+	connection.send(timeLimit);
 }
 
 bool Player::Controls::recv_controls_message(Connection *connection_)
@@ -82,8 +83,8 @@ bool Player::Controls::recv_controls_message(Connection *connection_)
 	if (recv_buffer[0] != uint8_t(Message::C2S_Controls))
 		return false;
 	uint32_t size = (uint32_t(recv_buffer[3]) << 16) | (uint32_t(recv_buffer[2]) << 8) | uint32_t(recv_buffer[1]);
-	if (size != 17)
-		throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 16!");
+	if (size != 21)
+		throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 21!");
 
 	// expecting complete message:
 	if (recv_buffer.size() < 4 + size)
@@ -112,6 +113,7 @@ bool Player::Controls::recv_controls_message(Connection *connection_)
 	recv_button(recv_buffer[4 + 8], &start);
 	std::memcpy(&horiz, &recv_buffer[4 + 9], sizeof(float));
 	std::memcpy(&vert, &recv_buffer[4 + 13], sizeof(float));
+	std::memcpy(&timeLimit, &recv_buffer[4 + 17], sizeof(float));
 
 	// delete message from buffer:
 	recv_buffer.erase(recv_buffer.begin(), recv_buffer.begin() + 4 + size);
@@ -310,6 +312,7 @@ void Game::update(float elapsed)
 			if (p.controls.start.downs && &p == &players.front() && count(Role::Fly) >= 1 && count(Role::Human) >= 1)
 			{
 				started = true;
+				timeLimit = glm::clamp(p.controls.timeLimit, 30.0f, 300.0f);
 				flies_remaining = count(Role::Fly);
 			}
 			p.controls.fly.downs = 0;
@@ -576,6 +579,7 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 	// Game Variables:
 	connection.send(flies_remaining);
 	connection.send(time);
+	connection.send(timeLimit);
 	connection.send(humanWon);
 	connection.send(started);
 
@@ -626,6 +630,7 @@ bool Game::recv_state_message(Connection *connection_)
 
 	read(&flies_remaining);
 	read(&time);
+	read(&timeLimit);
 	read(&humanWon);
 	read(&started);
 

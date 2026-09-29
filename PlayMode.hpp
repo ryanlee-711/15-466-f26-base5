@@ -43,6 +43,7 @@ struct PlayMode : Mode
 		Lobby
 	} screen = Menu;
 	std::string ip;
+	std::string timeInput;
 
 	float mouse_sen = 2.5f;
 

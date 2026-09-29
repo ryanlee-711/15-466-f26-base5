@@ -45,6 +45,9 @@ struct Player
 		float horiz = 0.0f;
 		float vert = 0.0f;
 
+		// Time limit can be set by host player
+		float timeLimit = 200.0f;
+
 		void send_controls_message(Connection *connection) const;
 
 		// returns 'false' if no message or not a controls message,
