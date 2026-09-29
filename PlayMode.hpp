@@ -9,29 +9,35 @@
 #include <vector>
 #include <deque>
 
-struct PlayMode : Mode {
+struct PlayMode : Mode
+{
 	PlayMode();
 	virtual ~PlayMode();
 
-	//functions called by main loop:
+	// functions called by main loop:
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
 	virtual void draw(glm::uvec2 const &drawable_size) override;
 
 	//----- game state -----
 
-	//input tracking for local player:
+	// input tracking for local player:
 	Player::Controls controls;
 
-	//latest game state (from server):
+	// latest game state (from server):
 	Game game;
 
-	//last message from server:
+	// last message from server:
 	std::string server_message;
 
 	Client *client = nullptr;
 	SDL_Process *server = nullptr;
-	enum { Menu, Join, Lobby } screen = Menu;
+	enum
+	{
+		Menu,
+		Join,
+		Lobby
+	} screen = Menu;
 	std::string ip;
 
 	float mouse_sen = 2.5f;
@@ -41,7 +47,20 @@ struct PlayMode : Mode {
 	Scene fly, player;
 	Scene::Transform *fly_root = nullptr;
 	Scene::Transform *player_root = nullptr;
+	Scene::Transform *arm = nullptr;
+	glm::quat arm_base;
 	glm::vec3 fly_cam_offset;
 	glm::quat fly_cam_rotation;
 
+	// Audio
+	std::shared_ptr<Sound::PlayingSample> menu_music;
+	std::shared_ptr<Sound::PlayingSample> main_music;
+	std::shared_ptr<Sound::PlayingSample> timer_music;
+
+	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> fly_buzz;
+	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> player_steps;
+	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> player_swats;
+
+	std::map<uint32_t, float> player_step_cooldown_times;
+	float player_step_cooldown = 0.3f;
 };

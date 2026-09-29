@@ -54,6 +54,7 @@ struct Player
 
 	// offset, only used for erratic fly movement
 	glm::vec3 offset = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 previous_position = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 	std::string name = "";
@@ -70,6 +71,7 @@ struct Player
 	// Human Specific Variables
 	float swat_time = 0.0f;
 	float swat_cooldown = 0.0f;
+	glm::vec3 dead_at = glm::vec3(0.0f);
 };
 
 struct Game
@@ -88,7 +90,14 @@ struct Game
 	bool started = false;
 	uint32_t count(Role role) const;
 
-	std::vector<glm::vec3> triangles;
+	struct Box
+	{
+		glm::vec3 min = glm::vec3(0.0f);
+		glm::vec3 max = glm::vec3(0.0f);
+	};
+	std::vector<Box> boxes;
+
+	bool overlaps_collision_box(Player const &player, glm::vec3 const &position) const;
 
 	Game();
 
@@ -124,6 +133,12 @@ struct Game
 	inline static constexpr glm::vec3 FlyNoise1Freq = glm::vec3(1.0f / 3.0f, 1.0f / 7.0f, 1.0f / 5.0f);
 	inline static constexpr glm::vec3 FlyNoise2Freq = glm::vec3(1.0f / 11.0f, 1.0f / 2.3f, 1.0f / 3.14159f);
 	inline static constexpr float FlyNoiseAmplitude = 0.25f;
+
+	inline static constexpr float SwatDuration = 0.4f;
+	inline static constexpr float SwatCooldown = 1.0f;
+	inline static constexpr float SwatReach = 1.5f;
+	inline static constexpr float SwatHalfSize = 0.3f;
+	inline static constexpr glm::vec3 SwatEye = glm::vec3(0.0f, 0.26f, 1.88f);
 
 	//---- communication helpers ----
 

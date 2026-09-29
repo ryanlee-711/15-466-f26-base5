@@ -6,6 +6,7 @@
 #include "hex_dump.hpp"
 #include "Mesh.hpp"
 #include "LitColorTextureProgram.hpp"
+#include "Sound.hpp"
 
 #include <glm/gtc/type_ptr.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -23,7 +24,7 @@ Load<MeshBuffer> meshes(LoadTagDefault, []() -> MeshBuffer const *
 
 static void add_drawable(Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
 {
-	if (mesh_name.ends_with("_BoundingBox"))
+	if (mesh_name.find("_BoundingBox") != std::string::npos)
 		return;
 	Mesh const &mesh = meshes->lookup(mesh_name);
 	scene.drawables.emplace_back(transform);
@@ -34,6 +35,29 @@ static void add_drawable(Scene &scene, Scene::Transform *transform, std::string 
 	drawable.pipeline.start = mesh.start;
 	drawable.pipeline.count = mesh.count;
 }
+
+// Music
+static Load<Sound::Sample> music_base_sample(LoadTagDefault, []() -> Sound::Sample const *
+																						 { return new Sound::Sample(data_path("main_theme_base.wav")); });
+
+static Load<Sound::Sample> music_timer_sample(LoadTagDefault, []() -> Sound::Sample const *
+																							{ return new Sound::Sample(data_path("main_theme_timer.wav")); });
+
+static Load<Sound::Sample> menu_sample(LoadTagDefault, []() -> Sound::Sample const *
+																			 { return new Sound::Sample(data_path("menu_theme.wav")); });
+
+// SFX
+static Load<Sound::Sample> fly_buzz_sample(LoadTagDefault, []() -> Sound::Sample const *
+																					 { return new Sound::Sample(data_path("Fly_Buzz.wav")); });
+
+static Load<Sound::Sample> fly_death_sample(LoadTagDefault, []() -> Sound::Sample const *
+																						{ return new Sound::Sample(data_path("Fly_Death.wav")); });
+
+static Load<Sound::Sample> player_swat(LoadTagDefault, []() -> Sound::Sample const *
+																			 { return new Sound::Sample(data_path("Player_Swat.wav")); });
+
+static Load<Sound::Sample> player_step(LoadTagDefault, []() -> Sound::Sample const *
+																			 { return new Sound::Sample(data_path("Player_Step.wav")); });
 
 Load<Scene> room_scene(LoadTagDefault, []() -> Scene const *
 											 { return new Scene(data_path("room.scene"), add_drawable); });
@@ -48,11 +72,19 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 		if (t.name == "Fly")
 			fly_root = &t;
 	for (auto &t : player.transforms)
+	{
 		if (t.name == "Player")
 			player_root = &t;
+		if (t.name == "Arm_R")
+			arm = &t;
+	}
+	arm_base = arm->rotation;
 	fly_cam_offset = fly.cameras.front().transform->position;
 	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
+	player.cameras.front().fovy = glm::radians(70.0f);
+
+	menu_music = Sound::loop(*menu_sample, 0.0f);
 }
 
 PlayMode::~PlayMode()
@@ -242,6 +274,54 @@ void PlayMode::update(float elapsed)
 	controls.human.downs = 0;
 	controls.start.downs = 0;
 
+	// Handle music
+	if (game.started)
+	{
+		// Stop menu music
+
+		// Start main and timer music if not started
+
+		// Set timer volume based on timer duration
+
+		for (auto const &p : game.players)
+		{
+			if (p.role == Role::Fly)
+			{
+				if (!p.alive)
+				{
+					// Stop fly buzz
+
+					// Play death sound if not already played
+				}
+				else
+				{
+					// Set fly buzz playing
+
+					const float buzz_volume = p.velocity.length() / game.FlySpeed;
+					// Set volume
+				}
+			}
+			else
+			{
+				// Compare to last stored swat time for this player to see if a swat just happened
+				if (p.swat_time < 0.0f)
+				{
+					// Play swat sound
+				}
+
+				// Check cooldown for step
+				if (player_step_cooldown_times.at(p.id) <= 0.0f && p.velocity.length() > 0.0f)
+				{
+					// play step audio and reset cooldown
+
+					player_step_cooldown_times.at(p.id) = player_step_cooldown;
+				}
+
+				player_step_cooldown_times.at(p.id) -= elapsed;
+			}
+		}
+	}
+
 	// send/receive data:
 	client->poll([this](Connection *c, Connection::Event event)
 							 {
@@ -319,6 +399,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			player_root->position = p.position;
 			player_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
 			player.cameras.front().transform->rotation = glm::angleAxis(glm::radians(90.0f) + p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
+			arm->rotation = glm::angleAxis(glm::radians(360.0f) * p.swat_time / Game::SwatDuration, glm::vec3(1.0f, 0.0f, 0.0f)) * arm_base;
 			return player;
 		}
 		fly_root->position = p.position;
@@ -350,9 +431,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	scene.draw(world_to_clip);
 	for (auto const &p : game.players)
 	{
-		if (!p.alive || (&p == &me && p.role == Role::Human))
-			continue;
-		place(p).draw(world_to_clip);
+		Scene &model = place(p);
+		if (!p.alive)
+			fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		model.draw(world_to_clip);
 	}
 
 	GL_ERRORS();
