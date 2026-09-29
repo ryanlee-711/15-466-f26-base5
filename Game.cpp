@@ -13,6 +13,7 @@
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 static glm::vec3 closest_on_segment(glm::vec3 a, glm::vec3 b, glm::vec3 p)
 {
@@ -123,6 +124,16 @@ bool Player::Controls::recv_controls_message(Connection *connection_)
 
 Game::Game() : mt(0x15466666)
 {
+	Scene room(data_path("spawns.scene"), nullptr);
+	for (auto const &t : room.transforms)
+	{
+		glm::vec3 position = (t.make_world_from_local() * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)) * MapScale;
+		if (t.name.starts_with("Fly_Spawn"))
+			fly_spawns.emplace_back(position);
+		else if (t.name.starts_with("Player_Spawn"))
+			human_spawns.emplace_back(position);
+	}
+
 	Scene collision(data_path("collision.scene"), nullptr);
 	for (auto const &t : collision.transforms)
 	{
@@ -228,28 +239,22 @@ bool Game::touches_wall(glm::vec3 p, float r) const
 	return false;
 }
 
+glm::vec3 Game::spawn_position(Role role, uint32_t spawn_index) const
+{
+	std::vector<glm::vec3> const &spawns = role == Role::Human ? human_spawns : fly_spawns;
+	glm::vec3 pos = spawns[spawn_index % spawns.size()];
+
+	std::cout << "Found spawn position: " << glm::to_string(pos) << "\n";
+
+	return pos;
+}
+
 Player *Game::spawn_player()
 {
 	players.emplace_back();
 	Player &player = players.back();
 	bool isHuman = next_player_number % 2 == 0;
-
-	if (isHuman)
-	{
-		// random point in the middle area of the arena: FIX ONCE MAP IS MADE
-		player.position.x = glm::mix(ArenaMin.x + 2.0f * HumanRadius, ArenaMax.x - 2.0f * HumanRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.y = glm::mix(ArenaMin.y + 2.0f * HumanRadius, ArenaMax.y - 2.0f * HumanRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.z = ArenaMin.z;
-		player.role = Role::Human;
-	}
-	else
-	{
-		player.position.x = glm::mix(ArenaMin.x + 2.0f * FlyRadius, ArenaMax.x - 2.0f * FlyRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.y = glm::mix(ArenaMin.y + 2.0f * FlyRadius, ArenaMax.y - 2.0f * FlyRadius, 0.4f + 0.2f * mt() / float(mt.max()));
-		player.position.z = 1.2f;
-		player.role = Role::Fly;
-		flies_remaining++;
-	}
+	player.role = isHuman ? Role::Human : Role::Fly;
 
 	do
 	{
@@ -261,6 +266,8 @@ Player *Game::spawn_player()
 
 	player.id = next_player_number;
 	player.name = "Player " + std::to_string(next_player_number++);
+	player.position = spawn_position(player.role, count(player.role) - 1);
+	player.previous_position = player.position;
 
 	return &player;
 }
@@ -272,7 +279,7 @@ void Game::remove_player(Player *player)
 	{
 		if (&*pi == player)
 		{
-			if (pi->role == Role::Fly && pi->alive)
+			if (started && pi->role == Role::Fly && pi->alive)
 			{
 				flies_remaining--;
 				if (flies_remaining == 0)
@@ -305,10 +312,18 @@ void Game::update(float elapsed)
 	{
 		for (auto &p : players)
 		{
-			if (p.controls.fly.downs && count(Role::Fly) < 3)
+			if (p.controls.fly.downs && p.role != Role::Fly && count(Role::Fly) < 3)
+			{
 				p.role = Role::Fly;
-			if (p.controls.human.downs && count(Role::Human) < 3)
+				p.position = spawn_position(p.role, count(p.role) - 1);
+				p.previous_position = p.position;
+			}
+			if (p.controls.human.downs && p.role != Role::Human && count(Role::Human) < 3)
+			{
 				p.role = Role::Human;
+				p.position = spawn_position(p.role, count(p.role) - 1);
+				p.previous_position = p.position;
+			}
 			if (p.controls.start.downs && &p == &players.front() && count(Role::Fly) >= 1 && count(Role::Human) >= 1)
 			{
 				started = true;

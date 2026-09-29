@@ -22,6 +22,7 @@ all : \
 	$(DIST)/flieger-war.pnct \
 	$(DIST)/room.scene \
 	$(DIST)/collision.scene \
+	$(DIST)/spawns.scene \
 	$(DIST)/fly.scene \
 	$(DIST)/player.scene \
 
@@ -33,6 +34,9 @@ $(DIST)/room.scene : flieger-war.blend $(EXPORT_SCENE)
 
 $(DIST)/collision.scene : flieger-war.blend $(EXPORT_SCENE)
 	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Basement_Collision '$@'
+
+$(DIST)/spawns.scene : flieger-war.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Basement_SpawnPoints '$@'
 
 $(DIST)/fly.scene : flieger-war.blend $(EXPORT_SCENE)
 	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Fly '$@'

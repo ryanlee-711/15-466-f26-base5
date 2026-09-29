@@ -108,7 +108,7 @@ def write_xfh(obj):
 		parent_ref = write_xfh(obj.parent)
 		world_to_parent = obj.parent.matrix_world.copy()
 		world_to_parent.invert()
-	
+
 	ref = struct.pack('i', len(obj_to_xfh))
 	obj_to_xfh[par_obj] = ref
 	#print(repr(ref) + ": " + obj.name + " (" + repr(parent_ref) + ")")
@@ -152,9 +152,9 @@ def write_camera(obj):
 		camera_data += struct.pack('f', obj.data.ortho_scale)
 	else:
 		assert(False and "Unsupported camera type '" + obj.data.type + "'")
-	
+
 	camera_data += struct.pack('ff', obj.data.clip_start, obj.data.clip_end)
-		
+
 #write_lamp will add an object to the lamp section:
 def write_light(obj):
 	global lamp_data
@@ -190,7 +190,6 @@ def write_light(obj):
 		lamp_data += struct.pack('f', fov)
 	else:
 		lamp_data += struct.pack('f', 0.0)
-	
 
 written = set()
 def write_objects(from_collection):
@@ -210,6 +209,10 @@ def write_objects(from_collection):
 			instance_parents.append(obj)
 			write_objects(obj.instance_collection)
 			instance_parents.pop()
+		elif obj.type == 'EMPTY':
+			# Added so that we can read spawn locations which are coded by empties
+			write_xfh(obj)
+			print("empty: " + parent_names() + obj.name)
 		else:
 			print('Skipping ' + obj.type)
 	for child in from_collection.children:

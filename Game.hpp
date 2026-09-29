@@ -101,6 +101,7 @@ struct Game
 	bool started = false;
 	uint32_t count(Role role) const;
 	bool touches_wall(glm::vec3 p, float r) const;
+	glm::vec3 spawn_position(Role role, uint32_t spawn_index) const;
 
 	// For checking collisions against scene
 	struct Box
@@ -110,6 +111,8 @@ struct Game
 		glm::vec3 max = glm::vec3(0.0f);
 	};
 	std::vector<Box> boxes;
+	std::vector<glm::vec3> fly_spawns;
+	std::vector<glm::vec3> human_spawns;
 
 	bool overlaps_collision_box(Player const &player, glm::vec3 const &position) const;
 	std::vector<glm::vec3> triangles;
