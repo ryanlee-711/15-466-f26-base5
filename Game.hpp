@@ -58,10 +58,11 @@ struct Player
 	// player state (sent from server):
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
 	glm::vec3 velocity = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 previous_position = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	// offset, only used for erratic fly movement
 	glm::vec3 offset = glm::vec3(0.0f, 0.0f, 0.0f);
-	glm::vec3 previous_position = glm::vec3(0.0f, 0.0f, 0.0f);
+	float offset_time = 0.0f;
 
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 	std::string name = "";
@@ -141,8 +142,8 @@ struct Game
 	inline static constexpr float VertRate = 1.5f;
 	inline static constexpr float FlyClimbSpeed = 2.0f;
 
-	inline static constexpr glm::vec3 FlyNoise1Freq = glm::vec3(1.0f / 3.0f, 1.0f / 7.0f, 1.0f / 5.0f);
-	inline static constexpr glm::vec3 FlyNoise2Freq = glm::vec3(1.0f / 11.0f, 1.0f / 2.3f, 1.0f / 3.14159f);
+	inline static constexpr glm::vec3 FlyNoise1Freq = 15.0f * glm::vec3(1.0f / 3.0f, 1.0f / 7.0f, 1.0f / 5.0f);
+	inline static constexpr glm::vec3 FlyNoise2Freq = 15.0f * glm::vec3(1.0f / 11.0f, 1.0f / 2.3f, 1.0f / 3.14159f);
 	inline static constexpr float FlyNoiseAmplitude = 0.25f;
 
 	inline static constexpr float SwatDuration = 0.4f;

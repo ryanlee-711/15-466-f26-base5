@@ -341,7 +341,8 @@ void Game::update(float elapsed)
 		{
 			if (f.role != Role::Fly || !f.alive)
 				continue;
-			glm::vec3 d = f.position - eye;
+			glm::vec3 fly_position = f.position + f.offset;
+			glm::vec3 d = fly_position - eye;
 			if (glm::dot(d, forward) < 0.0f || glm::dot(d, forward) > SwatReach)
 				continue;
 			if (std::abs(glm::dot(d, right)) > SwatHalfSize || std::abs(glm::dot(d, up)) > SwatHalfSize)
@@ -452,14 +453,16 @@ void Game::update(float elapsed)
 			p.position += p.velocity * elapsed;
 
 			// Calculate offset from fly noise
+			float speed = glm::clamp(glm::length(p.velocity) / FlySpeed, 0.0f, 1.0f);
+			p.offset_time += elapsed * speed;
 			p.offset = FlyNoiseAmplitude * (glm::vec3(
-																					glm::sin(time * FlyNoise1Freq.x),
-																					glm::sin(time * FlyNoise1Freq.y),
-																					glm::sin(time * FlyNoise1Freq.z)) +
+																					glm::sin(p.offset_time * FlyNoise1Freq.x),
+																					glm::sin(p.offset_time * FlyNoise1Freq.y),
+																					glm::sin(p.offset_time * FlyNoise1Freq.z)) *
 																			glm::vec3(
-																					glm::sin(time * FlyNoise2Freq.x),
-																					glm::sin(time * FlyNoise2Freq.y),
-																					glm::sin(time * FlyNoise2Freq.z)));
+																					glm::sin(p.offset_time * FlyNoise2Freq.x),
+																					glm::sin(p.offset_time * FlyNoise2Freq.y),
+																					glm::sin(p.offset_time * FlyNoise2Freq.z)));
 		}
 
 		// reset 'downs' since controls have been handled:
@@ -506,6 +509,13 @@ void Game::update(float elapsed)
 		}
 		glm::vec3 up = glm::vec3(0.0f, 0.0f, p1.role == Role::Human ? 0.5f : 0.0f);
 		glm::vec3 center = p1.position + up;
+		if (p1.role == Role::Fly && touches_wall(p1.position + p1.offset, p1Rad))
+		{
+			p1.position = p1.previous_position;
+			p1.velocity = glm::vec3(0.0f);
+			p1.speed = 0.0f;
+			continue;
+		}
 		for (size_t i = 0; i < triangles.size(); i += 3)
 		{
 			glm::vec3 close = closest_on_triangle(triangles[i], triangles[i + 1], triangles[i + 2], center);
@@ -545,6 +555,7 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 		connection.send(player.role);
 		connection.send(player.position);
 		connection.send(player.velocity);
+		connection.send(player.offset);
 		connection.send(player.color);
 
 		// NOTE: can't just 'send(name)' because player.name is not plain-old-data type.
@@ -628,6 +639,7 @@ bool Game::recv_state_message(Connection *connection_)
 		read(&player.role);
 		read(&player.position);
 		read(&player.velocity);
+		read(&player.offset);
 		read(&player.color);
 		uint8_t name_len;
 		read(&name_len);

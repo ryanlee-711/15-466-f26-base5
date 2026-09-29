@@ -367,7 +367,7 @@ void PlayMode::update(float elapsed)
 					// Play death sound if not already played
 					if (!fly_dead[p.id])
 					{
-						fly_dead[p.id] = Sound::play_3D(*fly_death_sample, 1.0f, p.position);
+						fly_dead[p.id] = Sound::play_3D(*fly_death_sample, 1.0f, p.position + p.offset);
 					}
 				}
 				else
@@ -377,9 +377,9 @@ void PlayMode::update(float elapsed)
 
 					auto &buzz = fly_buzz[p.id];
 					if (!buzz)
-						buzz = Sound::loop_3D(*fly_buzz_sample, 0.0f, p.position);
+						buzz = Sound::loop_3D(*fly_buzz_sample, 0.0f, p.position + p.offset);
 
-					buzz->set_position(p.position);
+					buzz->set_position(p.position + p.offset);
 
 					float buzz_volume = std::clamp(speed / Game::FlySpeed, 0.0f, 1.0f);
 					// Set volume
@@ -399,12 +399,12 @@ void PlayMode::update(float elapsed)
 
 				// Check cooldown for step
 				float &step_cooldown = player_step_cooldown_times[p.id];
-				float speed = glm::length(p.velocity);
+				float speed = glm::length(p.velocity) / Game::HumanSpeed;
 
-				if (step_cooldown <= 0.0f && speed > 0.1f)
+				if (step_cooldown <= 0.0f && speed > 0.2f)
 				{
 					// play step audio and reset cooldown
-					float step_volume = std::clamp(speed / Game::HumanSpeed, 0.0f, 1.0f);
+					float step_volume = std::clamp(speed, 0.0f, 1.0f);
 
 					player_steps[p.id] = Sound::play_3D(*player_step, step_volume, p.position);
 					step_cooldown = player_step_cooldown;
@@ -498,7 +498,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			leg_r->rotation = glm::angleAxis(-swing, glm::vec3(1.0f, 0.0f, 0.0f)) * leg_r_base;
 			return player;
 		}
-		fly_root->position = p.position;
+		fly_root->position = p.position + p.offset;
 		fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(p.vert, glm::vec3(1.0f, 0.0f, 0.0f)) * glm::angleAxis(p.turnDip, glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::quat yaw = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
 		Scene::Transform *cam = fly.cameras.front().transform;
