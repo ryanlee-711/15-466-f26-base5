@@ -156,12 +156,12 @@ void poll_connections(
 	for (auto &c : connections) {
 		//don't bother with connections unless they are valid, have something to send, and are marked writable:
 		if (c.socket == InvalidSocket || c.send_buffer.empty() || !FD_ISSET(c.socket, &write_fds)) continue;
-		
+
 		#ifdef _WIN32
 		ssize_t ret = send(c.socket, reinterpret_cast< char const * >(c.send_buffer.data()), int(c.send_buffer.size()), MSG_DONTWAIT);
 		#else
 		ssize_t ret = send(c.socket, reinterpret_cast< char const * >(c.send_buffer.data()), c.send_buffer.size(), MSG_DONTWAIT);
-		#endif 
+		#endif
 		if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
 			//~no problem~, but don't keep trying
 			break;
@@ -178,7 +178,7 @@ void poll_connections(
 		}
 	}
 
-		
+
 }
 
 //---------------------------------
@@ -245,6 +245,16 @@ Server::Server(std::string const &port) {
 				if (ret != 0) {
 					std::cout << "[note: couldn't set SO_REUSEADDR] " << std::endl;
 				}
+			}
+
+			if (info->ai_family == AF_INET6) { //accept IPv4 connections for Windows
+				#ifdef _WIN32
+				DWORD zero = 0;
+				setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast< const char * >(&zero), sizeof(zero));
+				#else
+				int zero = 0;
+				setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
+				#endif
 			}
 
 			int ret = bind(s, info->ai_addr, int(info->ai_addrlen));

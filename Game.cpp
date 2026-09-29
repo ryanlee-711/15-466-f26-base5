@@ -35,7 +35,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	send_button(right);
 	send_button(up);
 	send_button(down);
-	send_button(swat);
+	send_button(space);
 	send_button(fly);
 	send_button(human);
 	send_button(start);
@@ -74,7 +74,7 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	recv_button(recv_buffer[4+1], &right);
 	recv_button(recv_buffer[4+2], &up);
 	recv_button(recv_buffer[4+3], &down);
-	recv_button(recv_buffer[4+4], &swat);
+	recv_button(recv_buffer[4+4], &space);
 	recv_button(recv_buffer[4+5], &fly);
 	recv_button(recv_buffer[4+6], &human);
 	recv_button(recv_buffer[4+7], &start);
@@ -296,7 +296,7 @@ void Game::update(float elapsed) {
 		p.controls.right.downs = 0;
 		p.controls.up.downs = 0;
 		p.controls.down.downs = 0;
-		p.controls.swat.downs = 0;
+		p.controls.space.downs = 0;
 	}
 
 	//collision resolution:

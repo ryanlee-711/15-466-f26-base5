@@ -31,7 +31,7 @@ struct Button {
 struct Player {
 	//player inputs (sent from client):
 	struct Controls {
-		Button left, right, up, down, swat, fly, human, start;
+		Button left, right, up, down, space, fly, human, start;
 
 		//Camera angle
 		float horiz = 0.0f;
