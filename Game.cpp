@@ -208,7 +208,12 @@ bool Game::resolve_collision_box(Player const &player, glm::vec3 previous_positi
 			}
 		}
 
+		// If we resolved then we don't need to check for rejections
+		if (resolved_box)
+			continue;
+
 		// We reject if the player is actually overlapping, but the margin gives it some grace
+		// THIS BLOCK finally got hte fly out of the wall
 		bool reject = true;
 		if (player_max.x <= box.min.x || player_min.x >= box.max.x)
 			reject = false;
@@ -216,7 +221,7 @@ bool Game::resolve_collision_box(Player const &player, glm::vec3 previous_positi
 			reject = false;
 		if (player_max.z <= box.min.z || player_min.z >= box.max.z)
 			reject = false;
-		if (!resolved_box && reject)
+		if (reject)
 			return false;
 	}
 
@@ -375,6 +380,7 @@ void Game::update(float elapsed)
 	for (auto &p : players)
 	{
 		p.previous_position = p.position;
+		p.previous_offset = p.offset;
 		glm::vec3 dir = glm::vec3(0.0f, 0.0f, 0.0f);
 
 		// First person movement for Humans
@@ -470,8 +476,6 @@ void Game::update(float elapsed)
 			p.position += p.velocity * elapsed;
 
 			// Calculate offset from fly noise
-			float speed = glm::clamp(glm::length(p.velocity) / FlySpeed, 0.0f, 1.0f);
-			p.offset_time += elapsed * speed;
 			p.offset = FlyNoiseAmplitude * (glm::vec3(
 																					glm::sin(p.offset_time * FlyNoise1Freq.x),
 																					glm::sin(p.offset_time * FlyNoise1Freq.y),
@@ -529,7 +533,7 @@ void Game::update(float elapsed)
 		if (p1.role == Role::Fly)
 		{
 			glm::vec3 offset_position = p1.position + p1.offset;
-			glm::vec3 previous_offset_position = p1.previous_position + p1.offset;
+			glm::vec3 previous_offset_position = p1.previous_position + p1.previous_offset;
 			if (resolve_collision_box(p1, previous_offset_position, &offset_position))
 			{
 				p1.position = offset_position - p1.offset;
@@ -544,13 +548,23 @@ void Game::update(float elapsed)
 			p1.position = p1.previous_position;
 			p1.velocity = glm::vec3(0.0f);
 			p1.speed = 0.0f;
+
+			p1.offset = p1.previous_offset;
 		}
 		else
 		{
+
 			for (int axis = 0; axis < 3; ++axis)
 			{
 				if (p1.position[axis] != before_collision[axis])
 					p1.velocity[axis] = 0.0f;
+			}
+
+			// Successful movement, update offset time
+			if (p1.role == Role::Fly)
+			{
+				float speed = glm::clamp(glm::length(p1.velocity) / FlySpeed, 0.0f, 1.0f);
+				p1.offset_time += elapsed * speed;
 			}
 		}
 	}

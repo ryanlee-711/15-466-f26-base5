@@ -65,6 +65,7 @@ struct Player
 
 	// offset, only used for erratic fly movement
 	glm::vec3 offset = glm::vec3(0.0f, 0.0f, 0.0f);
+	glm::vec3 previous_offset = glm::vec3(0.0f, 0.0f, 0.0f);
 	float offset_time = 0.0f;
 
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -138,7 +139,7 @@ struct Game
 	inline static constexpr float HumanHeight = 2.0f;
 
 	// Fly constants:
-	inline static constexpr float FlyRadius = 0.165f;
+	inline static constexpr float FlyRadius = 0.14f;
 	inline static constexpr float FlySpeed = 5.0f;
 	inline static constexpr float FlyAccelHalflife = 0.25f;
 	inline static constexpr float TurnSpeed = 3.0f;
@@ -150,7 +151,7 @@ struct Game
 
 	inline static constexpr glm::vec3 FlyNoise1Freq = 15.0f * glm::vec3(1.0f / 3.0f, 1.0f / 7.0f, 1.0f / 5.0f);
 	inline static constexpr glm::vec3 FlyNoise2Freq = 15.0f * glm::vec3(1.0f / 11.0f, 1.0f / 2.3f, 1.0f / 3.14159f);
-	inline static constexpr float FlyNoiseAmplitude = 0.25f;
+	inline static constexpr float FlyNoiseAmplitude = 0.4f;
 
 	inline static constexpr float SwatDuration = 0.4f;
 	inline static constexpr float SwatCooldown = 1.0f;

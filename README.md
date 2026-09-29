@@ -33,6 +33,12 @@ Space - Swat
 Fly Controls: W - Move Forward A - Move Left S - Move Back D - Move Right
 Space - Fly Up Shift - Fly Down
 
+Note: Blender seems to have some inconsistent behavior when exporting from
+different scenes. Only the scene I have open when I save the file gets correctly
+exported, the others get corrupted. Running the export scripts without this in
+mind can corrupt the data and cause the game to fail. The exports we currently
+have saved should work.
+
 Sources: Menu theme composed by Johnny May (he liked our main theme so he made a
 cover which we used for the menu), used with permission
 
