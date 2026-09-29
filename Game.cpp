@@ -1,6 +1,8 @@
 #include "Game.hpp"
 
 #include "Connection.hpp"
+#include "Scene.hpp"
+#include "data_path.hpp"
 
 #include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
@@ -14,7 +16,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	assert(connection_);
 	auto &connection = *connection_;
 
-	uint32_t size = 13;
+	uint32_t size = 16;
 	connection.send(Message::C2S_Controls);
 	connection.send(uint8_t(size));
 	connection.send(uint8_t(size >> 8));
@@ -32,6 +34,9 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	send_button(up);
 	send_button(down);
 	send_button(swat);
+	send_button(fly);
+	send_button(human);
+	send_button(start);
 	connection.send(horiz);
 	connection.send(vert);
 }
@@ -48,7 +53,7 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	uint32_t size = (uint32_t(recv_buffer[3]) << 16)
 	              | (uint32_t(recv_buffer[2]) << 8)
 	              |  uint32_t(recv_buffer[1]);
-	if (size != 13) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 13!");
+	if (size != 16) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 16!");
 
 	//expecting complete message:
 	if (recv_buffer.size() < 4 + size) return false;
@@ -68,8 +73,11 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	recv_button(recv_buffer[4+2], &up);
 	recv_button(recv_buffer[4+3], &down);
 	recv_button(recv_buffer[4+4], &swat);
-	std::memcpy(&horiz, &recv_buffer[4+5], sizeof(float));
-	std::memcpy(&vert, &recv_buffer[4+9], sizeof(float));
+	recv_button(recv_buffer[4+5], &fly);
+	recv_button(recv_buffer[4+6], &human);
+	recv_button(recv_buffer[4+7], &start);
+	std::memcpy(&horiz, &recv_buffer[4+8], sizeof(float));
+	std::memcpy(&vert, &recv_buffer[4+12], sizeof(float));
 
 	//delete message from buffer:
 	recv_buffer.erase(recv_buffer.begin(), recv_buffer.begin() + 4 + size);
@@ -81,6 +89,10 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 //-----------------------------------------
 
 Game::Game() : mt(0x15466666) {
+	Scene collision(data_path("room1-collision.scene"), nullptr);
+	for (auto const &t : collision.transforms) {
+		boxes.push_back(Box{ t.position - glm::abs(t.scale), t.position + glm::abs(t.scale) });
+	}
 }
 
 Player *Game::spawn_player() {
@@ -133,7 +145,29 @@ void Game::remove_player(Player *player) {
 	assert(found);
 }
 
+uint32_t Game::count(Role role) const {
+	uint32_t n = 0;
+	for (auto const &p : players) {
+		if (p.role == role) n++;
+	}
+	return n;
+}
+
 void Game::update(float elapsed) {
+	if (!started) {
+		for (auto &p : players) {
+			if (p.controls.fly.downs && count(Role::Fly) < 3) p.role = Role::Fly;
+			if (p.controls.human.downs && count(Role::Human) < 3) p.role = Role::Human;
+			if (p.controls.start.downs && &p == &players.front() && count(Role::Fly) >= 1 && count(Role::Human) >= 1) {
+				started = true;
+				flies_remaining = count(Role::Fly);
+			}
+			p.controls.fly.downs = 0;
+			p.controls.human.downs = 0;
+			p.controls.start.downs = 0;
+		}
+		return;
+	}
 	//position/velocity update:
 	for (auto &p : players) {
 		glm::vec3 dir = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -246,32 +280,15 @@ void Game::update(float elapsed) {
 			p2.velocity += 0.5f * delta_v12;
 			p1.velocity -= 0.5f * delta_v12;
 		}
-		//player/arena collisions:
-		if (p1.position.x < ArenaMin.x + p1Rad) {
-			p1.position.x = ArenaMin.x + p1Rad;
-			p1.velocity.x = std::abs(p1.velocity.x);
-		}
-		if (p1.position.x > ArenaMax.x - p1Rad) {
-			p1.position.x = ArenaMax.x - p1Rad;
-			p1.velocity.x =-std::abs(p1.velocity.x);
-		}
-		if (p1.position.y < ArenaMin.y + p1Rad) {
-			p1.position.y = ArenaMin.y + p1Rad;
-			p1.velocity.y = std::abs(p1.velocity.y);
-		}
-		if (p1.position.y > ArenaMax.y - p1Rad) {
-			p1.position.y = ArenaMax.y - p1Rad;
-			p1.velocity.y =-std::abs(p1.velocity.y);
-		}
-		if (p1.role == Role::Fly) {
-			if (p1.position.z < ArenaMin.z + p1Rad) {
-				p1.position.z = ArenaMin.z + p1Rad;
-				p1.velocity.z = std::abs(p1.velocity.z);
-			}
-			if (p1.position.z > ArenaMax.z - p1Rad) {
-				p1.position.z = ArenaMax.z - p1Rad;
-				p1.velocity.z =-std::abs(p1.velocity.z);
-			}
+		for (auto const &b : boxes) {
+			glm::vec3 close = glm::clamp(p1.position, b.min, b.max);
+			if (p1.role == Role::Human) close.z = p1.position.z;
+			glm::vec3 d = p1.position - close;
+			float len = glm::length(d);
+			if (len >= p1Rad || len == 0.0f) continue;
+			glm::vec3 n = d / len;
+			p1.position = close + n * p1Rad;
+			p1.velocity -= n * std::min(0.0f, glm::dot(p1.velocity, n));
 		}
 	}
 
@@ -316,6 +333,7 @@ void Game::send_state_message(Connection *connection_, Player *connection_player
 	connection.send(flies_remaining);
 	connection.send(time);
 	connection.send(humanWon);
+	connection.send(started);
 
 	//player count:
 	connection.send(uint8_t(players.size()));
@@ -358,6 +376,7 @@ bool Game::recv_state_message(Connection *connection_) {
 	read(&flies_remaining);
 	read(&time);
 	read(&humanWon);
+	read(&started);
 
 	players.clear();
 	uint8_t player_count;

@@ -71,6 +71,11 @@ int main(int argc, char **argv) {
 				if (evt == Connection::OnOpen) {
 					//client connected:
 
+					if (game.players.size() == 4 || game.started) {
+						c->close();
+						return;
+					}
+
 					//create some player info for them:
 					connection_to_player.emplace(c, game.spawn_player());
 

@@ -2,6 +2,7 @@
 
 #include "Connection.hpp"
 #include "Game.hpp"
+#include "Scene.hpp"
 
 #include <glm/glm.hpp>
 
@@ -9,7 +10,7 @@
 #include <deque>
 
 struct PlayMode : Mode {
-	PlayMode(Client &client);
+	PlayMode();
 	virtual ~PlayMode();
 
 	//functions called by main loop:
@@ -28,7 +29,14 @@ struct PlayMode : Mode {
 	//last message from server:
 	std::string server_message;
 
-	//connection to server:
-	Client &client;
+	Client *client = nullptr;
+	SDL_Process *server = nullptr;
+	enum { Menu, Join, Lobby } screen = Menu;
+	std::string ip;
+
+	Scene scene;
+	Scene::Camera *camera = nullptr;
+	std::vector< Scene::Transform * > flies;
+	std::vector< Scene::Transform * > humans;
 
 };
