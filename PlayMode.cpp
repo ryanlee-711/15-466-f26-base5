@@ -381,7 +381,7 @@ void PlayMode::update(float elapsed)
 
 					buzz->set_position(p.position);
 
-					const float buzz_volume = std::clamp(speed / Game::FlySpeed, 0.0f, 1.0f);
+					float buzz_volume = std::clamp(speed / Game::FlySpeed, 0.0f, 1.0f);
 					// Set volume
 					buzz->set_volume(0.25f * buzz_volume);
 				}
@@ -399,11 +399,14 @@ void PlayMode::update(float elapsed)
 
 				// Check cooldown for step
 				float &step_cooldown = player_step_cooldown_times[p.id];
+				float speed = glm::length(p.velocity);
 
-				if (step_cooldown <= 0.0f && glm::length(p.velocity) > 0.1f)
+				if (step_cooldown <= 0.0f && speed > 0.1f)
 				{
 					// play step audio and reset cooldown
-					player_steps[p.id] = Sound::play_3D(*player_step, 1.0f, p.position);
+					float step_volume = std::clamp(speed / Game::HumanSpeed, 0.0f, 1.0f);
+
+					player_steps[p.id] = Sound::play_3D(*player_step, step_volume, p.position);
 					step_cooldown = player_step_cooldown;
 				}
 
