@@ -258,14 +258,31 @@ void Game::update(float elapsed) {
 		}
 		// Third Person movement for Flies
 		else {
-			p.horiz = p.controls.horiz;
-			p.vert = glm::clamp(p.controls.vert, -1.0f, 1.0f);
+			float vertIn = 0.0f;
+			float horizIn = 0.0f;
+			if (p.controls.left.pressed) horizIn += 1.0f;
+			if (p.controls.right.pressed) horizIn -= 1.0f;
+			if (p.controls.down.pressed) vertIn -= 1.0f;
+			if (p.controls.up.pressed) vertIn += 1.0f;
 
-			float next_speed = 0.0f;
-			if (p.controls.up.pressed) next_speed = FlySpeed;
+			p.vert += vertIn * VertRate * elapsed;
+			p.horiz += horizIn * HorizRate * elapsed;
+			if (vertIn == 0.0f) {
+				//no inputs: just drift to a stop vertically
+				float amt = 1.0f - std::pow(0.5f, elapsed / (FlyAccelHalflife * 2.0f));
+				p.vert = glm::mix(p.vert, 0.0f, amt);
+			}
+			p.vert = glm::clamp(p.vert, -1.0f, 1.0f);
+
+			float turning = std::min(1.0f, std::abs(horizIn) + std::abs(vertIn));
+			float next_speed = FlySpeed - turning * (FlySpeed - TurnSpeed);
+			next_speed -= std::sin(p.vert) * 0.6f * FlySpeed;
 			float rate = Accel;
 			if (next_speed < p.speed) rate = Decel;
 			p.speed += (next_speed - p.speed) * std::min(1.0f, rate * elapsed);
+
+			float newTurnDip = -horizIn * 0.6f;
+			p.turnDip += (newTurnDip - p.turnDip) * std::min(1.0f, 4.0f * elapsed);
 
 			glm::quat rot = glm::angleAxis(p.horiz, glm::vec3(0,0,1)) * glm::angleAxis(p.vert,  glm::vec3(1,0,0)) * glm::angleAxis(p.turnDip, glm::vec3(0,1,0));
 			glm::vec3 forward = rot * glm::vec3(0.0f, 1.0f, 0.0f);
