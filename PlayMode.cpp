@@ -53,12 +53,24 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 			player_root = &t;
 		if (t.name == "Arm_R")
 			arm = &t;
+		if (t.name == "Leg_L")
+			leg_l = &t;
+		if (t.name == "Leg_R")
+			leg_r = &t;
 	}
 	arm_base = arm->rotation;
+	leg_l_base = leg_l->rotation;
+	leg_r_base = leg_r->rotation;
 	fly_cam_offset = fly.cameras.front().transform->position;
 	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
 	player.cameras.front().fovy = glm::radians(70.0f);
+	scene.transforms.emplace_back();
+	Scene::Transform *map = &scene.transforms.back();
+	map->scale = Game::MapScale;
+	for (auto &t : scene.transforms)
+		if (t.parent == nullptr && &t != map)
+			t.parent = map;
 }
 
 PlayMode::~PlayMode()
@@ -220,6 +232,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	walk_time += elapsed;
 	if (screen == Lobby && client == nullptr)
 	{
 		try
@@ -326,6 +339,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			player_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
 			player.cameras.front().transform->rotation = glm::angleAxis(glm::radians(90.0f) + p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
 			arm->rotation = glm::angleAxis(glm::radians(360.0f) * p.swat_time / Game::SwatDuration, glm::vec3(1.0f, 0.0f, 0.0f)) * arm_base;
+			float swing = std::sin(walk_time * 10.0f) * 0.5f * std::min(1.0f, glm::length(p.velocity) / Game::HumanSpeed);
+			leg_l->rotation = glm::angleAxis(swing, glm::vec3(1.0f, 0.0f, 0.0f)) * leg_l_base;
+			leg_r->rotation = glm::angleAxis(-swing, glm::vec3(1.0f, 0.0f, 0.0f)) * leg_r_base;
 			return player;
 		}
 		fly_root->position = p.position;
@@ -334,6 +350,13 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		Scene::Transform *cam = fly.cameras.front().transform;
 		cam->position = p.position + yaw * fly_cam_offset;
 		cam->rotation = yaw * fly_cam_rotation;
+		cam->position = p.position;
+		for (float t = 0.025f; t <= 1.0f; t += 0.025f)
+		{
+			if (game.touches_wall(p.position + yaw * (t * fly_cam_offset), 0.075f))
+				break;
+			cam->position = p.position + yaw * (t * fly_cam_offset);
+		}
 		return fly;
 	};
 
@@ -361,6 +384,15 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		if (!p.alive)
 			fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		model.draw(world_to_clip);
+	}
+
+	{
+		glDisable(GL_DEPTH_TEST);
+		DrawLines lines(glm::mat4(1.0f));
+		std::string text = std::to_string(int(game.timeLimit - game.time)) + "  Flies: " + std::to_string(game.flies_remaining);
+		if (game.humanWon) text = "Humans win!";
+		else if (game.time >= game.timeLimit) text = "Flies win!";
+		lines.draw_text(text, glm::vec3(-0.95f, 0.85f, 0.0f), glm::vec3(0.06f, 0.0f, 0.0f), glm::vec3(0.0f, 0.1f, 0.0f));
 	}
 
 	GL_ERRORS();

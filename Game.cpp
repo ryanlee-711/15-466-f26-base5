@@ -111,6 +111,13 @@ static glm::vec3 closest_on_triangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm:
 	return best;
 }
 
+bool Game::touches_wall(glm::vec3 p, float r) const {
+	for (size_t i = 0; i < triangles.size(); i += 3) {
+		if (glm::length(p - closest_on_triangle(triangles[i], triangles[i+1], triangles[i+2], p)) < r) return true;
+	}
+	return false;
+}
+
 Game::Game() : mt(0x15466666) {
 	struct Vertex { glm::vec3 position; glm::vec3 normal; glm::u8vec4 color; glm::vec2 texcoord; };
 	struct Entry { uint32_t name_begin, name_end, vertex_begin, vertex_end; };
@@ -124,6 +131,7 @@ Game::Game() : mt(0x15466666) {
 
 	Scene collision(data_path("collision.scene"), [&](Scene &, Scene::Transform *t, std::string const &mesh_name) {
 		glm::mat4x3 world = t->make_world_from_local();
+		for (int c = 0; c < 4; ++c) world[c] *= MapScale;
 		for (auto const &e : index) {
 			if (std::string(names.begin() + e.name_begin, names.begin() + e.name_end) != mesh_name) continue;
 			for (uint32_t v = e.vertex_begin; v + 2 < e.vertex_end; v += 3) {
@@ -212,6 +220,8 @@ void Game::update(float elapsed) {
 		}
 		return;
 	}
+	if (humanWon || time >= timeLimit) return;
+	time += elapsed;
 	for (auto &p : players) {
 		p.swat_time = std::max(0.0f, p.swat_time - elapsed);
 		p.swat_cooldown = std::max(0.0f, p.swat_cooldown - elapsed);
