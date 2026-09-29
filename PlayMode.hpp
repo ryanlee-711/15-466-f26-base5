@@ -10,7 +10,7 @@
 #include <deque>
 
 struct PlayMode : Mode {
-	PlayMode(Client &client);
+	PlayMode();
 	virtual ~PlayMode();
 
 	//functions called by main loop:
