@@ -124,8 +124,14 @@ Game::Game() : mt(0x15466666) {
 		glm::mat4x3 world = t->make_world_from_local();
 		for (auto const &e : index) {
 			if (std::string(names.begin() + e.name_begin, names.begin() + e.name_end) != mesh_name) continue;
-			for (uint32_t v = e.vertex_begin; v < e.vertex_end; ++v) {
-				triangles.push_back(world * glm::vec4(vertices[v].position, 1.0f));
+			for (uint32_t v = e.vertex_begin; v + 2 < e.vertex_end; v += 3) {
+				glm::vec3 a = world * glm::vec4(vertices[v].position, 1.0f);
+				glm::vec3 b = world * glm::vec4(vertices[v+1].position, 1.0f);
+				glm::vec3 c = world * glm::vec4(vertices[v+2].position, 1.0f);
+				if (glm::length(glm::cross(b - a, c - a)) < 1e-6f) continue;
+				triangles.push_back(a);
+				triangles.push_back(b);
+				triangles.push_back(c);
 			}
 		}
 	});
@@ -252,31 +258,14 @@ void Game::update(float elapsed) {
 		}
 		// Third Person movement for Flies
 		else {
-			float vertIn = 0.0f;
-			float horizIn = 0.0f;
-			if (p.controls.left.pressed) horizIn += 1.0f;
-			if (p.controls.right.pressed) horizIn -= 1.0f;
-			if (p.controls.down.pressed) vertIn -= 1.0f;
-			if (p.controls.up.pressed) vertIn += 1.0f;
+			p.horiz = p.controls.horiz;
+			p.vert = glm::clamp(p.controls.vert, -1.0f, 1.0f);
 
-			p.vert += vertIn * VertRate * elapsed;
-			p.horiz += horizIn * HorizRate * elapsed;
-			if (vertIn == 0.0f) {
-				//no inputs: just drift to a stop vertically
-				float amt = 1.0f - std::pow(0.5f, elapsed / (FlyAccelHalflife * 2.0f));
-				p.vert = glm::mix(p.vert, 0.0f, amt);
-			}
-			p.vert = glm::clamp(p.vert, -1.0f, 1.0f);
-
-			float turning = std::min(1.0f, std::abs(horizIn) + std::abs(vertIn));
-			float next_speed = FlySpeed - turning * (FlySpeed - TurnSpeed);
-			next_speed -= std::sin(p.vert) * 0.6f * FlySpeed;
+			float next_speed = 0.0f;
+			if (p.controls.up.pressed) next_speed = FlySpeed;
 			float rate = Accel;
 			if (next_speed < p.speed) rate = Decel;
 			p.speed += (next_speed - p.speed) * std::min(1.0f, rate * elapsed);
-
-			float newTurnDip = -horizIn * 0.6f;
-			p.turnDip += (newTurnDip - p.turnDip) * std::min(1.0f, 4.0f * elapsed);
 
 			glm::quat rot = glm::angleAxis(p.horiz, glm::vec3(0,0,1)) * glm::angleAxis(p.vert,  glm::vec3(1,0,0)) * glm::angleAxis(p.turnDip, glm::vec3(0,1,0));
 			glm::vec3 forward = rot * glm::vec3(0.0f, 1.0f, 0.0f);
