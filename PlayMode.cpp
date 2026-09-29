@@ -11,6 +11,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
+#include <ifaddrs.h>
+#include <arpa/inet.h>
 #include <random>
 #include <array>
 
@@ -36,7 +38,24 @@ Load<Scene> level_scene(LoadTagDefault, []() -> Scene const *
 											   drawable.pipeline.start = mesh.start;
 											   drawable.pipeline.count = mesh.count; }); });
 
-PlayMode::PlayMode(Client &client_) : client(client_), scene(*level_scene)
+static std::string my_ip()
+{
+	std::string ret;
+	ifaddrs *addrs;
+	getifaddrs(&addrs);
+	for (ifaddrs *a = addrs; a; a = a->ifa_next)
+	{
+		if (a->ifa_addr && a->ifa_addr->sa_family == AF_INET)
+		{
+			std::string s = inet_ntoa(((sockaddr_in *)a->ifa_addr)->sin_addr);
+			if (!s.starts_with("127.")) ret = s;
+		}
+	}
+	freeifaddrs(addrs);
+	return ret;
+}
+
+PlayMode::PlayMode() : scene(*level_scene)
 {
 	for (auto &transform : scene.transforms)
 	{
@@ -48,10 +67,44 @@ PlayMode::PlayMode(Client &client_) : client(client_), scene(*level_scene)
 
 PlayMode::~PlayMode()
 {
+	if (server) SDL_KillProcess(server, true);
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 {
+	if (!game.started && evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+	{
+		int row = int(10.0f * evt.button.y / float(window_size.y));
+		if (screen == Menu && row == 4) screen = Join;
+		else if (screen == Menu && row == 5)
+		{
+			std::string path = data_path("server");
+			char const *args[] = {path.c_str(), "1337", nullptr};
+			server = SDL_CreateProcess(args, false);
+			ip = my_ip();
+			screen = Lobby;
+		}
+		else if (screen == Menu && row == 6) Mode::set_current(nullptr);
+		else if (screen == Lobby && row == 4) controls.fly.downs += 1;
+		else if (screen == Lobby && row == 5) controls.human.downs += 1;
+		else if (screen == Lobby && row == 6) controls.start.downs += 1;
+		return true;
+	}
+	if (screen == Join && evt.type == SDL_EVENT_KEY_DOWN)
+	{
+		if (evt.key.key == SDLK_BACKSPACE && !ip.empty()) ip.pop_back();
+		else if (evt.key.key == SDLK_PERIOD || (evt.key.key >= SDLK_0 && evt.key.key <= SDLK_9)) ip += char(evt.key.key);
+		else if (evt.key.key == SDLK_RETURN)
+		{
+			try
+			{
+				client = new Client(ip, "1337");
+				screen = Lobby;
+			}
+			catch (std::exception const &) {}
+		}
+		return true;
+	}
 
 	if (evt.type == SDL_EVENT_KEY_DOWN)
 	{
@@ -122,14 +175,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	{
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true)
 		{
-			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y));
-			controls.horiz += -motion.x * camera->fovy * mouse_sen;
-			float d = -motion.x * camera->fovy * mouse_sen;
-			spin_accum += std::abs(d);
-			controls.vert += motion.y * camera->fovy * mouse_sen;
-			controls.vert = glm::clamp(controls.vert, -1.4f, 1.4f);
+			// glm::vec2 motion = glm::vec2(
+			// 	evt.motion.xrel / float(window_size.y),
+			// 	-evt.motion.yrel / float(window_size.y));
+			// controls.horiz += -motion.x * camera->fovy * mouse_sen;
+			// float d = -motion.x * camera->fovy * mouse_sen;
+			// spin_accum += std::abs(d);
+			// controls.vert += motion.y * camera->fovy * mouse_sen;
+			// controls.vert = glm::clamp(controls.vert, -1.4f, 1.4f);
 
 			return true;
 		}
@@ -140,9 +193,18 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	if (screen == Lobby && client == nullptr)
+	{
+		try
+		{
+			client = new Client("localhost", "1337");
+		}
+		catch (std::exception const &) {}
+	}
+	if (client == nullptr) return;
 
 	// queue data for sending to server:
-	controls.send_controls_message(&client.connection);
+	controls.send_controls_message(&client->connection);
 
 	// reset button press counters:
 	controls.left.downs = 0;
@@ -150,9 +212,12 @@ void PlayMode::update(float elapsed)
 	controls.up.downs = 0;
 	controls.down.downs = 0;
 	controls.swat.downs = 0;
+	controls.fly.downs = 0;
+	controls.human.downs = 0;
+	controls.start.downs = 0;
 
 	// send/receive data:
-	client.poll([this](Connection *c, Connection::Event event)
+	client->poll([this](Connection *c, Connection::Event event)
 				{
 		if (event == Connection::OnOpen) {
 			std::cout << "[" << c->socket << "] opened" << std::endl;
@@ -173,6 +238,8 @@ void PlayMode::update(float elapsed)
 				throw e;
 			}
 		} }, 0.0);
+
+	if (!game.started) return;
 
 	for (auto t : flies)
 		t->scale = glm::vec3(0.0f);
@@ -200,6 +267,49 @@ void PlayMode::update(float elapsed)
 
 void PlayMode::draw(glm::uvec2 const &drawable_size)
 {
+	if (!game.started)
+	{
+		float aspect = float(drawable_size.x) / float(drawable_size.y);
+		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+		glDisable(GL_DEPTH_TEST);
+		DrawLines lines(glm::mat4(
+			1.0f / aspect, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f));
+		auto row = [&](int r, std::string const &text)
+		{
+			lines.draw_text(text, glm::vec3(-0.8f, 0.85f - 0.2f * r, 0.0f), glm::vec3(0.1f, 0.0f, 0.0f), glm::vec3(0.0f, 0.1f, 0.0f));
+		};
+		if (screen == Menu)
+		{
+			row(4, "Join Game");
+			row(5, "Host Game");
+			row(6, "Quit");
+		}
+		else if (screen == Join)
+		{
+			row(3, "Type host code, Enter to join:");
+			row(4, ip + "_");
+		}
+		else if (game.players.empty())
+		{
+			row(4, "Connecting...");
+		}
+		else
+		{
+			row(1, "Code: " + ip);
+			row(2, "Flies: " + std::to_string(game.count(Role::Fly)) + "  Humans: " + std::to_string(game.count(Role::Human)));
+			row(3, std::string("You are: ") + (game.players.front().role == Role::Fly ? "Fly" : "Human"));
+			row(4, "Be Fly");
+			row(5, "Be Human");
+			if (server && game.count(Role::Fly) >= 1 && game.count(Role::Human) >= 1) row(6, "Start Game");
+		}
+		GL_ERRORS();
+		return;
+	}
+
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
 	glUseProgram(lit_color_texture_program->program);

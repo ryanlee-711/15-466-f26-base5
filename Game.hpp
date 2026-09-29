@@ -31,7 +31,7 @@ struct Button {
 struct Player {
 	//player inputs (sent from client):
 	struct Controls {
-		Button left, right, up, down, swat;
+		Button left, right, up, down, swat, fly, human, start;
 
 		//Camera angle
 		float horiz = 0.0f;
@@ -80,6 +80,8 @@ struct Game {
 	float time = 0.0f;
 	float timeLimit = 300.0f;
 	bool humanWon = false;
+	bool started = false;
+	uint32_t count(Role role) const;
 
 	struct Box { glm::vec3 min, max; };
 	std::vector< Box > boxes;
