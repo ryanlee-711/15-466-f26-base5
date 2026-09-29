@@ -26,20 +26,13 @@ enum class Role : uint8_t
 	Human
 };
 
-// used to represent a control input:
-struct Button
-{
-	uint8_t downs = 0;		// times the button has been pressed
-	bool pressed = false; // is the button pressed now
-};
-
 // state of one player in the game:
 struct Player
 {
 	// player inputs (sent from client):
 	struct Controls
 	{
-		Button left, right, up, down, space, fly, human, start;
+		Button left, right, up, down, space, shift, fly, human, start;
 
 		// Camera angle
 		float horiz = 0.0f;
@@ -126,6 +119,7 @@ struct Game
 	inline static constexpr float Decel = 3.0f;
 	inline static constexpr float HorizRate = 2.5f;
 	inline static constexpr float VertRate = 1.5f;
+	inline static constexpr float FlyClimbSpeed = 2.0f;
 
 	inline static constexpr glm::vec3 FlyNoise1Freq = glm::vec3(1.0f / 3.0f, 1.0f / 7.0f, 1.0f / 5.0f);
 	inline static constexpr glm::vec3 FlyNoise2Freq = glm::vec3(1.0f / 11.0f, 1.0f / 2.3f, 1.0f / 3.14159f);

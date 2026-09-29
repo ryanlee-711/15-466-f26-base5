@@ -141,6 +141,12 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.space.pressed = true;
 			return true;
 		}
+		else if (evt.key.key == SDLK_LSHIFT)
+		{
+			controls.shift.downs += 1;
+			controls.shift.pressed = true;
+			return true;
+		}
 		else if (evt.key.key == SDLK_ESCAPE)
 		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, false);
@@ -172,6 +178,11 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		else if (evt.key.key == SDLK_SPACE)
 		{
 			controls.space.pressed = false;
+			return true;
+		}
+		else if (evt.key.key == SDLK_LSHIFT)
+		{
+			controls.shift.pressed = false;
 			return true;
 		}
 	}
@@ -226,6 +237,7 @@ void PlayMode::update(float elapsed)
 	controls.up.downs = 0;
 	controls.down.downs = 0;
 	controls.space.downs = 0;
+	controls.shift.downs = 0;
 	controls.fly.downs = 0;
 	controls.human.downs = 0;
 	controls.start.downs = 0;
