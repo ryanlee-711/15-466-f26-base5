@@ -18,7 +18,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	assert(connection_);
 	auto &connection = *connection_;
 
-	uint32_t size = 16;
+	uint32_t size = 17;
 	connection.send(Message::C2S_Controls);
 	connection.send(uint8_t(size));
 	connection.send(uint8_t(size >> 8));
@@ -36,6 +36,7 @@ void Player::Controls::send_controls_message(Connection *connection_) const {
 	send_button(up);
 	send_button(down);
 	send_button(space);
+	send_button(shift);
 	send_button(fly);
 	send_button(human);
 	send_button(start);
@@ -55,7 +56,7 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	uint32_t size = (uint32_t(recv_buffer[3]) << 16)
 	              | (uint32_t(recv_buffer[2]) << 8)
 	              |  uint32_t(recv_buffer[1]);
-	if (size != 16) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 16!");
+	if (size != 17) throw std::runtime_error("Controls message with size " + std::to_string(size) + " != 16!");
 
 	//expecting complete message:
 	if (recv_buffer.size() < 4 + size) return false;
@@ -75,11 +76,12 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 	recv_button(recv_buffer[4+2], &up);
 	recv_button(recv_buffer[4+3], &down);
 	recv_button(recv_buffer[4+4], &space);
-	recv_button(recv_buffer[4+5], &fly);
-	recv_button(recv_buffer[4+6], &human);
-	recv_button(recv_buffer[4+7], &start);
-	std::memcpy(&horiz, &recv_buffer[4+8], sizeof(float));
-	std::memcpy(&vert, &recv_buffer[4+12], sizeof(float));
+	recv_button(recv_buffer[4+5], &shift);
+	recv_button(recv_buffer[4+6], &fly);
+	recv_button(recv_buffer[4+7], &human);
+	recv_button(recv_buffer[4+8], &start);
+	std::memcpy(&horiz, &recv_buffer[4+9], sizeof(float));
+	std::memcpy(&vert, &recv_buffer[4+13], sizeof(float));
 
 	//delete message from buffer:
 	recv_buffer.erase(recv_buffer.begin(), recv_buffer.begin() + 4 + size);
@@ -258,25 +260,21 @@ void Game::update(float elapsed) {
 		}
 		// Third Person movement for Flies
 		else {
-			float vertIn = 0.0f;
 			float horizIn = 0.0f;
+			float climb = 0.0f;
 			if (p.controls.left.pressed) horizIn += 1.0f;
 			if (p.controls.right.pressed) horizIn -= 1.0f;
-			if (p.controls.down.pressed) vertIn -= 1.0f;
-			if (p.controls.up.pressed) vertIn += 1.0f;
+			if (p.controls.space.pressed) climb += 1.0f;
+			if (p.controls.shift.pressed) climb -= 1.0f;
 
-			p.vert += vertIn * VertRate * elapsed;
 			p.horiz += horizIn * HorizRate * elapsed;
-			if (vertIn == 0.0f) {
-				//no inputs: just drift to a stop vertically
-				float amt = 1.0f - std::pow(0.5f, elapsed / (FlyAccelHalflife * 2.0f));
-				p.vert = glm::mix(p.vert, 0.0f, amt);
-			}
+			float amt = 1.0f - std::pow(0.5f, elapsed / (FlyAccelHalflife * 2.0f));
+			p.vert = glm::mix(p.vert, climb * 0.4f, amt);
 			p.vert = glm::clamp(p.vert, -1.0f, 1.0f);
 
-			float turning = std::min(1.0f, std::abs(horizIn) + std::abs(vertIn));
-			float next_speed = FlySpeed - turning * (FlySpeed - TurnSpeed);
-			next_speed -= std::sin(p.vert) * 0.6f * FlySpeed;
+			float next_speed = 0.0f;
+			if (p.controls.up.pressed) next_speed = FlySpeed;
+			if (p.controls.down.pressed) next_speed = -0.5f * FlySpeed;
 			float rate = Accel;
 			if (next_speed < p.speed) rate = Decel;
 			p.speed += (next_speed - p.speed) * std::min(1.0f, rate * elapsed);
@@ -284,9 +282,8 @@ void Game::update(float elapsed) {
 			float newTurnDip = -horizIn * 0.6f;
 			p.turnDip += (newTurnDip - p.turnDip) * std::min(1.0f, 4.0f * elapsed);
 
-			glm::quat rot = glm::angleAxis(p.horiz, glm::vec3(0,0,1)) * glm::angleAxis(p.vert,  glm::vec3(1,0,0)) * glm::angleAxis(p.turnDip, glm::vec3(0,1,0));
-			glm::vec3 forward = rot * glm::vec3(0.0f, 1.0f, 0.0f);
-			p.velocity = forward * p.speed;
+			glm::vec3 forward = glm::vec3(-std::sin(p.horiz), std::cos(p.horiz), 0.0f);
+			p.velocity = forward * p.speed + glm::vec3(0.0f, 0.0f, climb * FlyClimbSpeed);
 		}
 
 		p.position += p.velocity * elapsed;
@@ -297,6 +294,7 @@ void Game::update(float elapsed) {
 		p.controls.up.downs = 0;
 		p.controls.down.downs = 0;
 		p.controls.space.downs = 0;
+		p.controls.shift.downs = 0;
 	}
 
 	//collision resolution:

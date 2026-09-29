@@ -31,7 +31,7 @@ struct Button {
 struct Player {
 	//player inputs (sent from client):
 	struct Controls {
-		Button left, right, up, down, space, fly, human, start;
+		Button left, right, up, down, space, shift, fly, human, start;
 
 		//Camera angle
 		float horiz = 0.0f;
@@ -114,6 +114,7 @@ struct Game {
 	inline static constexpr float Decel = 3.0f;
 	inline static constexpr float HorizRate = 2.5f;
 	inline static constexpr float VertRate = 1.5f;
+	inline static constexpr float FlyClimbSpeed = 2.0f;
 
 
 	//---- communication helpers ----
