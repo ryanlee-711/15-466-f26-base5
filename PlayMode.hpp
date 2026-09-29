@@ -3,11 +3,15 @@
 #include "Connection.hpp"
 #include "Game.hpp"
 #include "Scene.hpp"
+#include "Sound.hpp"
 
 #include <glm/glm.hpp>
 
 #include <vector>
 #include <deque>
+#include <map>
+#include <memory>
+#include <set>
 
 struct PlayMode : Mode
 {
@@ -49,6 +53,10 @@ struct PlayMode : Mode
 	Scene::Transform *player_root = nullptr;
 	Scene::Transform *arm = nullptr;
 	glm::quat arm_base;
+	Scene::Transform *leg_l = nullptr;
+	Scene::Transform *leg_r = nullptr;
+	glm::quat leg_l_base, leg_r_base;
+	float walk_time = 0.0f;
 	glm::vec3 fly_cam_offset;
 	glm::quat fly_cam_rotation;
 
@@ -56,11 +64,14 @@ struct PlayMode : Mode
 	std::shared_ptr<Sound::PlayingSample> menu_music;
 	std::shared_ptr<Sound::PlayingSample> main_music;
 	std::shared_ptr<Sound::PlayingSample> timer_music;
+	float OST_VOLUME = 0.3f;
 
 	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> fly_buzz;
+	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> fly_dead;
 	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> player_steps;
 	std::map<uint32_t, std::shared_ptr<Sound::PlayingSample>> player_swats;
 
 	std::map<uint32_t, float> player_step_cooldown_times;
+	std::map<uint32_t, float> player_last_swat_times;
 	float player_step_cooldown = 0.3f;
 };

@@ -26,6 +26,13 @@ enum class Role : uint8_t
 	Human
 };
 
+// used to represent a control input:
+struct Button
+{
+	uint8_t downs = 0;		// times the button has been pressed
+	bool pressed = false; // is the button pressed now
+};
+
 // state of one player in the game:
 struct Player
 {
@@ -89,15 +96,19 @@ struct Game
 	bool humanWon = false;
 	bool started = false;
 	uint32_t count(Role role) const;
+	bool touches_wall(glm::vec3 p, float r) const;
 
+	// For checking collisions against scene
 	struct Box
 	{
+		std::string name = "";
 		glm::vec3 min = glm::vec3(0.0f);
 		glm::vec3 max = glm::vec3(0.0f);
 	};
 	std::vector<Box> boxes;
 
 	bool overlaps_collision_box(Player const &player, glm::vec3 const &position) const;
+	std::vector<glm::vec3> triangles;
 
 	Game();
 
@@ -120,7 +131,7 @@ struct Game
 	inline static constexpr float HumanHeight = 2.0f;
 
 	// Fly constants:
-	inline static constexpr float FlyRadius = 0.075f;
+	inline static constexpr float FlyRadius = 0.175f;
 	inline static constexpr float FlySpeed = 5.0f;
 	inline static constexpr float FlyAccelHalflife = 0.25f;
 	inline static constexpr float TurnSpeed = 3.0f;
@@ -139,6 +150,8 @@ struct Game
 	inline static constexpr float SwatReach = 1.5f;
 	inline static constexpr float SwatHalfSize = 0.3f;
 	inline static constexpr glm::vec3 SwatEye = glm::vec3(0.0f, 0.26f, 1.88f);
+
+	inline static constexpr glm::vec3 MapScale = glm::vec3(2.0f, 2.0f, 1.3f);
 
 	//---- communication helpers ----
 

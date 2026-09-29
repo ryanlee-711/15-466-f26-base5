@@ -3,14 +3,38 @@
 #include "Connection.hpp"
 #include "Scene.hpp"
 #include "data_path.hpp"
+#include "read_write_chunk.hpp"
 
 #include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
+#include <fstream>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
+
+static glm::vec3 closest_on_segment(glm::vec3 a, glm::vec3 b, glm::vec3 p)
+{
+	float t = glm::clamp(glm::dot(p - a, b - a) / glm::dot(b - a, b - a), 0.0f, 1.0f);
+	return a + t * (b - a);
+}
+
+static glm::vec3 closest_on_triangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 p)
+{
+	glm::vec3 n = glm::cross(b - a, c - a);
+	glm::vec3 q = p - glm::dot(p - a, n) / glm::dot(n, n) * n;
+	if (glm::dot(glm::cross(b - a, q - a), n) >= 0.0f && glm::dot(glm::cross(c - b, q - b), n) >= 0.0f && glm::dot(glm::cross(a - c, q - c), n) >= 0.0f)
+		return q;
+	glm::vec3 best = closest_on_segment(a, b, p);
+	glm::vec3 bc = closest_on_segment(b, c, p);
+	glm::vec3 ca = closest_on_segment(c, a, p);
+	if (glm::length(p - bc) < glm::length(p - best))
+		best = bc;
+	if (glm::length(p - ca) < glm::length(p - best))
+		best = ca;
+	return best;
+}
 
 void Player::Controls::send_controls_message(Connection *connection_) const
 {
@@ -100,9 +124,70 @@ Game::Game() : mt(0x15466666)
 	Scene collision(data_path("collision.scene"), nullptr);
 	for (auto const &t : collision.transforms)
 	{
-		glm::vec3 half_extents = glm::abs(t.scale);
-		boxes.push_back(Box{t.position - half_extents, t.position + half_extents});
+		glm::mat4x3 world_from_local = t.make_world_from_local();
+		Box box;
+		box.name = t.name;
+		bool first = true;
+		for (int x = -1; x <= 1; x += 2)
+		{
+			for (int y = -1; y <= 1; y += 2)
+			{
+				for (int z = -1; z <= 1; z += 2)
+				{
+					glm::vec3 corner = (world_from_local * glm::vec4(x, y, z, 1.0f)) * MapScale;
+					if (first)
+					{
+						box.min = corner;
+						box.max = corner;
+						first = false;
+					}
+					else
+					{
+						box.min = glm::min(box.min, corner);
+						box.max = glm::max(box.max, corner);
+					}
+				}
+			}
+		}
+		boxes.emplace_back(box);
 	}
+
+	struct Vertex
+	{
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::u8vec4 color;
+		glm::vec2 texcoord;
+	};
+	struct Entry
+	{
+		uint32_t name_begin, name_end, vertex_begin, vertex_end;
+	};
+	std::ifstream file(data_path("flieger-war.pnct"), std::ios::binary);
+	std::vector<Vertex> vertices;
+	std::vector<char> names;
+	std::vector<Entry> index;
+	read_chunk(file, "pnct", &vertices);
+	read_chunk(file, "str0", &names);
+	read_chunk(file, "idx0", &index);
+
+	Scene collision_meshes(data_path("collision.scene"), [&](Scene &, Scene::Transform *t, std::string const &mesh_name)
+												 {
+		glm::mat4x3 world = t->make_world_from_local();
+		for (int c = 0; c < 4; ++c)
+			world[c] *= MapScale;
+		for (auto const &e : index) {
+			if (std::string(names.begin() + e.name_begin, names.begin() + e.name_end) != mesh_name) continue;
+			for (uint32_t v = e.vertex_begin; v + 2 < e.vertex_end; v += 3) {
+				glm::vec3 a = world * glm::vec4(vertices[v].position, 1.0f);
+				glm::vec3 b = world * glm::vec4(vertices[v+1].position, 1.0f);
+				glm::vec3 c = world * glm::vec4(vertices[v+2].position, 1.0f);
+				if (glm::length(glm::cross(b - a, c - a)) < 1e-6f) continue;
+				triangles.push_back(a);
+				triangles.push_back(b);
+				triangles.push_back(c);
+			}
+		} });
 }
 
 bool Game::overlaps_collision_box(Player const &player, glm::vec3 const &position) const
@@ -124,7 +209,19 @@ bool Game::overlaps_collision_box(Player const &player, glm::vec3 const &positio
 			continue;
 		if (player_max.z <= box.min.z || player_min.z >= box.max.z)
 			continue;
+
+		std::cout << "Detected collision with " << box.name << "\n";
 		return true;
+	}
+	return false;
+}
+
+bool Game::touches_wall(glm::vec3 p, float r) const
+{
+	for (size_t i = 0; i < triangles.size(); i += 3)
+	{
+		if (glm::length(p - closest_on_triangle(triangles[i], triangles[i + 1], triangles[i + 2], p)) < r)
+			return true;
 	}
 	return false;
 }
@@ -221,6 +318,9 @@ void Game::update(float elapsed)
 		}
 		return;
 	}
+	if (humanWon || time >= timeLimit)
+		return;
+	time += elapsed;
 	for (auto &p : players)
 	{
 		p.swat_time = std::max(0.0f, p.swat_time - elapsed);
@@ -404,12 +504,20 @@ void Game::update(float elapsed)
 			p2.velocity += 0.5f * delta_v12;
 			p1.velocity -= 0.5f * delta_v12;
 		}
-		if (overlaps_collision_box(p1, p1.position))
+		glm::vec3 up = glm::vec3(0.0f, 0.0f, p1.role == Role::Human ? 0.5f : 0.0f);
+		glm::vec3 center = p1.position + up;
+		for (size_t i = 0; i < triangles.size(); i += 3)
 		{
-			p1.position = p1.previous_position;
-			p1.velocity = glm::vec3(0.0f);
-			p1.speed = 0.0f;
+			glm::vec3 close = closest_on_triangle(triangles[i], triangles[i + 1], triangles[i + 2], center);
+			glm::vec3 d = center - close;
+			float len = glm::length(d);
+			if (len >= p1Rad || len == 0.0f)
+				continue;
+			glm::vec3 n = d / len;
+			center = close + n * p1Rad;
+			p1.velocity -= n * std::min(0.0f, glm::dot(p1.velocity, n));
 		}
+		p1.position = center - up;
 	}
 
 	for (auto &p : players)

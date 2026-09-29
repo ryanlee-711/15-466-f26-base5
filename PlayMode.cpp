@@ -14,6 +14,7 @@
 
 #include <random>
 #include <array>
+#include <algorithm>
 
 GLuint meshes_for_lit_color_texture_program = 0;
 Load<MeshBuffer> meshes(LoadTagDefault, []() -> MeshBuffer const *
@@ -77,18 +78,40 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 			player_root = &t;
 		if (t.name == "Arm_R")
 			arm = &t;
+		if (t.name == "Leg_L")
+			leg_l = &t;
+		if (t.name == "Leg_R")
+			leg_r = &t;
 	}
 	arm_base = arm->rotation;
+	leg_l_base = leg_l->rotation;
+	leg_r_base = leg_r->rotation;
 	fly_cam_offset = fly.cameras.front().transform->position;
 	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
 	player.cameras.front().fovy = glm::radians(70.0f);
 
 	menu_music = Sound::loop(*menu_sample, 0.0f);
+
+	scene.transforms.emplace_back();
+	Scene::Transform *map = &scene.transforms.back();
+	map->scale = Game::MapScale;
+	for (auto &t : scene.transforms)
+		if (t.parent == nullptr && &t != map)
+			t.parent = map;
 }
 
 PlayMode::~PlayMode()
 {
+	if (menu_music)
+		menu_music->stop(0.2f);
+	if (main_music)
+		main_music->stop(0.2f);
+	if (timer_music)
+		timer_music->stop(0.2f);
+	for (auto &[id, buzz] : fly_buzz)
+		if (buzz)
+			buzz->stop(0.2f);
 	if (server)
 		SDL_KillProcess(server, true);
 }
@@ -246,6 +269,39 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	walk_time += elapsed;
+
+	// Menu music
+	if (!game.started)
+	{
+		if (!menu_music)
+			menu_music = Sound::loop(*menu_sample, 0.0f);
+
+		menu_music->set_volume(OST_VOLUME, 0.5f);
+
+		if (main_music)
+		{
+			main_music->stop(0.5f);
+			main_music = nullptr;
+		}
+
+		if (timer_music)
+		{
+			timer_music->stop(0.5f);
+			timer_music = nullptr;
+		}
+
+		for (auto &[id, buzz] : fly_buzz)
+			if (buzz)
+				buzz->stop(0.2f);
+
+		// Empty old maps
+		fly_buzz.clear();
+		fly_dead.clear();
+		player_step_cooldown_times.clear();
+		player_last_swat_times.clear();
+	}
+
 	if (screen == Lobby && client == nullptr)
 	{
 		try
@@ -278,10 +334,21 @@ void PlayMode::update(float elapsed)
 	if (game.started)
 	{
 		// Stop menu music
+		if (menu_music)
+		{
+			menu_music->stop(0.5f);
+			menu_music = nullptr;
+		}
 
 		// Start main and timer music if not started
+		if (!main_music)
+			main_music = Sound::loop(*music_base_sample, OST_VOLUME);
+		if (!timer_music)
+			timer_music = Sound::loop(*music_timer_sample, 0.0f);
 
 		// Set timer volume based on timer duration
+		float timer_volume = 1.0 - std::max(0.0f, game.timeLimit - game.time) / game.timeLimit;
+		timer_music->set_volume(OST_VOLUME * timer_volume, 0.5f);
 
 		for (auto const &p : game.players)
 		{
@@ -290,34 +357,57 @@ void PlayMode::update(float elapsed)
 				if (!p.alive)
 				{
 					// Stop fly buzz
+					auto buzz = fly_buzz[p.id];
+					if (buzz)
+					{
+						buzz->stop(0.15f);
+						fly_buzz[p.id] = nullptr;
+					}
 
 					// Play death sound if not already played
+					if (!fly_dead[p.id])
+					{
+						fly_dead[p.id] = Sound::play_3D(*fly_death_sample, 1.0f, p.position);
+					}
 				}
 				else
 				{
 					// Set fly buzz playing
+					float speed = glm::length(p.velocity);
 
-					const float buzz_volume = p.velocity.length() / game.FlySpeed;
+					auto &buzz = fly_buzz[p.id];
+					if (!buzz)
+						buzz = Sound::loop_3D(*fly_buzz_sample, 0.0f, p.position);
+
+					buzz->set_position(p.position);
+
+					const float buzz_volume = std::clamp(speed / Game::FlySpeed, 0.0f, 1.0f);
 					// Set volume
+					buzz->set_volume(0.25f * buzz_volume);
 				}
 			}
 			else
 			{
 				// Compare to last stored swat time for this player to see if a swat just happened
-				if (p.swat_time < 0.0f)
+				float &last_swat_time = player_last_swat_times[p.id];
+				if (p.swat_time > last_swat_time)
 				{
 					// Play swat sound
+					player_swats[p.id] = Sound::play_3D(*player_swat, 1.0f, p.position + Game::SwatEye);
 				}
+				last_swat_time = p.swat_time;
 
 				// Check cooldown for step
-				if (player_step_cooldown_times.at(p.id) <= 0.0f && p.velocity.length() > 0.0f)
+				float &step_cooldown = player_step_cooldown_times[p.id];
+
+				if (step_cooldown <= 0.0f && glm::length(p.velocity) > 0.1f)
 				{
 					// play step audio and reset cooldown
-
-					player_step_cooldown_times.at(p.id) = player_step_cooldown;
+					player_steps[p.id] = Sound::play_3D(*player_step, 1.0f, p.position);
+					step_cooldown = player_step_cooldown;
 				}
 
-				player_step_cooldown_times.at(p.id) -= elapsed;
+				step_cooldown -= elapsed;
 			}
 		}
 	}
@@ -400,6 +490,9 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			player_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
 			player.cameras.front().transform->rotation = glm::angleAxis(glm::radians(90.0f) + p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
 			arm->rotation = glm::angleAxis(glm::radians(360.0f) * p.swat_time / Game::SwatDuration, glm::vec3(1.0f, 0.0f, 0.0f)) * arm_base;
+			float swing = std::sin(walk_time * 10.0f) * 0.5f * std::min(1.0f, glm::length(p.velocity) / Game::HumanSpeed);
+			leg_l->rotation = glm::angleAxis(swing, glm::vec3(1.0f, 0.0f, 0.0f)) * leg_l_base;
+			leg_r->rotation = glm::angleAxis(-swing, glm::vec3(1.0f, 0.0f, 0.0f)) * leg_r_base;
 			return player;
 		}
 		fly_root->position = p.position;
@@ -408,12 +501,21 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		Scene::Transform *cam = fly.cameras.front().transform;
 		cam->position = p.position + yaw * fly_cam_offset;
 		cam->rotation = yaw * fly_cam_rotation;
+		cam->position = p.position;
+		for (float t = 0.025f; t <= 1.0f; t += 0.025f)
+		{
+			if (game.touches_wall(p.position + yaw * (t * fly_cam_offset), 0.075f))
+				break;
+			cam->position = p.position + yaw * (t * fly_cam_offset);
+		}
 		return fly;
 	};
 
 	Player const &me = game.players.front();
 	camera = &place(me).cameras.front();
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
+	glm::mat4x3 camera_from_local = camera->transform->make_world_from_local();
+	Sound::listener.set_position_right(camera_from_local[3], glm::normalize(camera_from_local[0]));
 	glm::mat4 world_to_clip = camera->make_projection() * glm::mat4(camera->transform->make_local_from_world());
 
 	glUseProgram(lit_color_texture_program->program);
@@ -435,6 +537,17 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		if (!p.alive)
 			fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		model.draw(world_to_clip);
+	}
+
+	{
+		glDisable(GL_DEPTH_TEST);
+		DrawLines lines(glm::mat4(1.0f));
+		std::string text = std::to_string(int(game.timeLimit - game.time)) + "  Flies: " + std::to_string(game.flies_remaining);
+		if (game.humanWon)
+			text = "Humans win!";
+		else if (game.time >= game.timeLimit)
+			text = "Flies win!";
+		lines.draw_text(text, glm::vec3(-0.95f, 0.85f, 0.0f), glm::vec3(0.06f, 0.0f, 0.0f), glm::vec3(0.0f, 0.1f, 0.0f));
 	}
 
 	GL_ERRORS();
