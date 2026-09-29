@@ -10,7 +10,7 @@
 #include <deque>
 
 struct PlayMode : Mode {
-	PlayMode();
+	PlayMode(Client &client);
 	virtual ~PlayMode();
 
 	//functions called by main loop:
@@ -33,6 +33,8 @@ struct PlayMode : Mode {
 	SDL_Process *server = nullptr;
 	enum { Menu, Join, Lobby } screen = Menu;
 	std::string ip;
+
+	float mouse_sen = 2.5f;
 
 	Scene scene;
 	Scene::Camera *camera = nullptr;
