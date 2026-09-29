@@ -121,6 +121,20 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.swat.pressed = false;
 			return true;
 		}
+	} else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true) {
+			glm::vec2 motion = glm::vec2(
+				evt.motion.xrel / float(window_size.y),
+				-evt.motion.yrel / float(window_size.y)
+			);
+			controls.horiz += -motion.x * camera->fovy * mouse_sen;
+			float d = -motion.x * camera->fovy * mouse_sen;
+			spin_accum += std::abs(d);
+			controls.vert += motion.y * camera->fovy * mouse_sen;
+			controls.vert = glm::clamp(controls.vert, -1.4f, 1.4f);
+
+			return true;
+		}
 	}
 
 	return false;
