@@ -76,6 +76,8 @@ def add_meshes(from_collection):
 		add_meshes(child)
 
 add_meshes(collection)
+if not collection_name:
+	for scene in bpy.data.scenes: add_meshes(scene.collection)
 #print("Added meshes from: ", did_collections)
 
 #set all collections visible: (so that meshes can be selected for triangulation)

@@ -19,15 +19,23 @@ EXPORT_SCENE=export-scene.py
 DIST=../dist
 
 all : \
-	$(DIST)/room1.pnct \
-	$(DIST)/room1.scene \
-	$(DIST)/room1-collision.scene \
+	$(DIST)/flieger-war.pnct \
+	$(DIST)/room.scene \
+	$(DIST)/collision.scene \
+	$(DIST)/fly.scene \
+	$(DIST)/player.scene \
 
-$(DIST)/room1.pnct : flieger-war.blend $(EXPORT_MESHES)
-	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<':Room1_Graphics '$@'
+$(DIST)/flieger-war.pnct : flieger-war.blend $(EXPORT_MESHES)
+	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<' '$@'
 
-$(DIST)/room1.scene : flieger-war.blend $(EXPORT_SCENE)
-	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Room1_Graphics '$@'
+$(DIST)/room.scene : flieger-war.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Graphics '$@'
 
-$(DIST)/room1-collision.scene : flieger-war.blend $(EXPORT_SCENE)
-	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Room1_Collision '$@'
+$(DIST)/collision.scene : flieger-war.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Collision '$@'
+
+$(DIST)/fly.scene : flieger-war.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Fly '$@'
+
+$(DIST)/player.scene : flieger-war.blend $(EXPORT_SCENE)
+	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Player '$@'

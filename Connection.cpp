@@ -359,3 +359,18 @@ void Client::poll(std::function< void(Connection *, Connection::Event event) > c
 	poll_connections("Client::poll", connections, on_event, timeout, InvalidSocket);
 }
 
+std::string my_ip() {
+	Socket s = socket(AF_INET, SOCK_DGRAM, 0);
+	sockaddr_in to = {};
+	to.sin_family = AF_INET;
+	to.sin_port = htons(80);
+	inet_pton(AF_INET, "8.8.8.8", &to.sin_addr);
+	connect(s, (sockaddr *)&to, int(sizeof(to)));
+	sockaddr_in me = {};
+	socklen_t len = sizeof(me);
+	getsockname(s, (sockaddr *)&me, &len);
+	closesocket(s);
+	char ip[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &me.sin_addr, ip, sizeof(ip));
+	return ip;
+}
