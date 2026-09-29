@@ -113,9 +113,9 @@ struct Game
 	std::vector<Box> boxes;
 	std::vector<glm::vec3> fly_spawns;
 	std::vector<glm::vec3> human_spawns;
+	inline static constexpr float COLLISION_CLAMP_MARGIN = 0.01f;
 
-	bool overlaps_collision_box(Player const &player, glm::vec3 const &position) const;
-	std::vector<glm::vec3> triangles;
+	bool resolve_collision_box(Player const &player, glm::vec3 previous_position, glm::vec3 *position) const;
 
 	Game();
 
@@ -138,7 +138,7 @@ struct Game
 	inline static constexpr float HumanHeight = 2.0f;
 
 	// Fly constants:
-	inline static constexpr float FlyRadius = 0.175f;
+	inline static constexpr float FlyRadius = 0.165f;
 	inline static constexpr float FlySpeed = 5.0f;
 	inline static constexpr float FlyAccelHalflife = 0.25f;
 	inline static constexpr float TurnSpeed = 3.0f;
@@ -154,7 +154,7 @@ struct Game
 
 	inline static constexpr float SwatDuration = 0.4f;
 	inline static constexpr float SwatCooldown = 1.0f;
-	inline static constexpr float SwatReach = 1.5f;
+	inline static constexpr float SwatReach = 1.7f;
 	inline static constexpr float SwatHalfSize = 0.3f;
 	inline static constexpr glm::vec3 SwatEye = glm::vec3(0.0f, 0.26f, 1.88f);
 

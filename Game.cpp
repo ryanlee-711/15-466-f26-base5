@@ -15,28 +15,6 @@
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-static glm::vec3 closest_on_segment(glm::vec3 a, glm::vec3 b, glm::vec3 p)
-{
-	float t = glm::clamp(glm::dot(p - a, b - a) / glm::dot(b - a, b - a), 0.0f, 1.0f);
-	return a + t * (b - a);
-}
-
-static glm::vec3 closest_on_triangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 p)
-{
-	glm::vec3 n = glm::cross(b - a, c - a);
-	glm::vec3 q = p - glm::dot(p - a, n) / glm::dot(n, n) * n;
-	if (glm::dot(glm::cross(b - a, q - a), n) >= 0.0f && glm::dot(glm::cross(c - b, q - b), n) >= 0.0f && glm::dot(glm::cross(a - c, q - c), n) >= 0.0f)
-		return q;
-	glm::vec3 best = closest_on_segment(a, b, p);
-	glm::vec3 bc = closest_on_segment(b, c, p);
-	glm::vec3 ca = closest_on_segment(c, a, p);
-	if (glm::length(p - bc) < glm::length(p - best))
-		best = bc;
-	if (glm::length(p - ca) < glm::length(p - best))
-		best = ca;
-	return best;
-}
-
 void Player::Controls::send_controls_message(Connection *connection_) const
 {
 	assert(connection_);
@@ -134,37 +112,6 @@ Game::Game() : mt(0x15466666)
 			human_spawns.emplace_back(position);
 	}
 
-	Scene collision(data_path("collision.scene"), nullptr);
-	for (auto const &t : collision.transforms)
-	{
-		glm::mat4x3 world_from_local = t.make_world_from_local();
-		Box box;
-		box.name = t.name;
-		bool first = true;
-		for (int x = -1; x <= 1; x += 2)
-		{
-			for (int y = -1; y <= 1; y += 2)
-			{
-				for (int z = -1; z <= 1; z += 2)
-				{
-					glm::vec3 corner = (world_from_local * glm::vec4(x, y, z, 1.0f)) * MapScale;
-					if (first)
-					{
-						box.min = corner;
-						box.max = corner;
-						first = false;
-					}
-					else
-					{
-						box.min = glm::min(box.min, corner);
-						box.max = glm::max(box.max, corner);
-					}
-				}
-			}
-		}
-		boxes.emplace_back(box);
-	}
-
 	struct Vertex
 	{
 		glm::vec3 position;
@@ -191,50 +138,104 @@ Game::Game() : mt(0x15466666)
 			world[c] *= MapScale;
 		for (auto const &e : index) {
 			if (std::string(names.begin() + e.name_begin, names.begin() + e.name_end) != mesh_name) continue;
-			for (uint32_t v = e.vertex_begin; v + 2 < e.vertex_end; v += 3) {
-				glm::vec3 a = world * glm::vec4(vertices[v].position, 1.0f);
-				glm::vec3 b = world * glm::vec4(vertices[v+1].position, 1.0f);
-				glm::vec3 c = world * glm::vec4(vertices[v+2].position, 1.0f);
-				if (glm::length(glm::cross(b - a, c - a)) < 1e-6f) continue;
-				triangles.push_back(a);
-				triangles.push_back(b);
-				triangles.push_back(c);
+			Box box;
+			box.name = t->name;
+			bool first = true;
+			for (uint32_t v = e.vertex_begin; v < e.vertex_end; ++v) {
+				glm::vec3 p = world * glm::vec4(vertices[v].position, 1.0f);
+				if (first) {
+					box.min = p;
+					box.max = p;
+					first = false;
+				} else {
+					box.min = glm::min(box.min, p);
+					box.max = glm::max(box.max, p);
+				}
 			}
+			boxes.emplace_back(box);
 		} });
 }
 
-bool Game::overlaps_collision_box(Player const &player, glm::vec3 const &position) const
+bool Game::resolve_collision_box(Player const &player, glm::vec3 previous_position, glm::vec3 *position) const
 {
-	float radius = player.role == Role::Human ? HumanRadius : FlyRadius;
-	glm::vec3 player_min = position - glm::vec3(radius);
-	glm::vec3 player_max = position + glm::vec3(radius);
-	if (player.role == Role::Human)
-	{
-		player_min.z = position.z;
-		player_max.z = position.z + HumanHeight;
-	}
-
 	for (auto const &box : boxes)
 	{
-		if (player_max.x <= box.min.x || player_min.x >= box.max.x)
+		float radius = player.role == Role::Human ? Game::HumanRadius : Game::FlyRadius;
+		float margin_radius = radius + Game::COLLISION_CLAMP_MARGIN;
+		glm::vec3 player_min = *position - glm::vec3(radius);
+		glm::vec3 player_max = *position + glm::vec3(radius);
+		glm::vec3 margin_min = *position - glm::vec3(margin_radius);
+		glm::vec3 margin_max = *position + glm::vec3(margin_radius);
+		if (player.role == Role::Human)
+		{
+			player_min.z = position->z;
+			player_max.z = position->z + Game::HumanHeight;
+			margin_min.z = position->z;
+			margin_max.z = position->z + Game::HumanHeight;
+		}
+
+		// Skip if the player is out of the bounds
+		if (margin_max.x <= box.min.x || margin_min.x >= box.max.x)
 			continue;
-		if (player_max.y <= box.min.y || player_min.y >= box.max.y)
+		if (margin_max.y <= box.min.y || margin_min.y >= box.max.y)
 			continue;
-		if (player_max.z <= box.min.z || player_min.z >= box.max.z)
+		if (margin_max.z <= box.min.z || margin_min.z >= box.max.z)
 			continue;
 
-		std::cout << "Detected collision with " << box.name << "\n";
-		return true;
+		// Otherwise clamp offending axis to valid position
+		glm::vec3 previous_min = previous_position - glm::vec3(margin_radius);
+		glm::vec3 previous_max = previous_position + glm::vec3(margin_radius);
+		if (player.role == Role::Human)
+		{
+			previous_min.z = previous_position.z;
+			previous_max.z = previous_position.z + Game::HumanHeight;
+		}
+
+		bool resolved_box = false;
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			if (previous_max[axis] <= box.min[axis])
+			{
+				(*position)[axis] += box.min[axis] - margin_max[axis];
+				resolved_box = true;
+				break;
+			}
+			else if (previous_min[axis] >= box.max[axis])
+			{
+				(*position)[axis] += box.max[axis] - margin_min[axis];
+				resolved_box = true;
+				break;
+			}
+		}
+
+		// We reject if the player is actually overlapping, but the margin gives it some grace
+		bool reject = true;
+		if (player_max.x <= box.min.x || player_min.x >= box.max.x)
+			reject = false;
+		if (player_max.y <= box.min.y || player_min.y >= box.max.y)
+			reject = false;
+		if (player_max.z <= box.min.z || player_min.z >= box.max.z)
+			reject = false;
+		if (!resolved_box && reject)
+			return false;
 	}
-	return false;
+
+	return true;
 }
 
 bool Game::touches_wall(glm::vec3 p, float r) const
 {
-	for (size_t i = 0; i < triangles.size(); i += 3)
+	glm::vec3 min = p - glm::vec3(r);
+	glm::vec3 max = p + glm::vec3(r);
+	for (auto const &box : boxes)
 	{
-		if (glm::length(p - closest_on_triangle(triangles[i], triangles[i + 1], triangles[i + 2], p)) < r)
-			return true;
+		if (max.x <= box.min.x || min.x >= box.max.x)
+			continue;
+		if (max.y <= box.min.y || min.y >= box.max.y)
+			continue;
+		if (max.z <= box.min.z || min.z >= box.max.z)
+			continue;
+		return true;
 	}
 	return false;
 }
@@ -243,8 +244,6 @@ glm::vec3 Game::spawn_position(Role role, uint32_t spawn_index) const
 {
 	std::vector<glm::vec3> const &spawns = role == Role::Human ? human_spawns : fly_spawns;
 	glm::vec3 pos = spawns[spawn_index % spawns.size()];
-
-	std::cout << "Found spawn position: " << glm::to_string(pos) << "\n";
 
 	return pos;
 }
@@ -525,27 +524,35 @@ void Game::update(float elapsed)
 			p2.velocity += 0.5f * delta_v12;
 			p1.velocity -= 0.5f * delta_v12;
 		}
-		glm::vec3 up = glm::vec3(0.0f, 0.0f, p1.role == Role::Human ? 0.5f : 0.0f);
-		glm::vec3 center = p1.position + up;
-		if (p1.role == Role::Fly && touches_wall(p1.position + p1.offset, p1Rad))
+		glm::vec3 before_collision = p1.position;
+		bool resolved = resolve_collision_box(p1, p1.previous_position, &p1.position);
+		if (p1.role == Role::Fly)
+		{
+			glm::vec3 offset_position = p1.position + p1.offset;
+			glm::vec3 previous_offset_position = p1.previous_position + p1.offset;
+			if (resolve_collision_box(p1, previous_offset_position, &offset_position))
+			{
+				p1.position = offset_position - p1.offset;
+			}
+			else
+				resolved = false;
+		}
+
+		// If we failed to resolve the collision we reject the update
+		if (!resolved)
 		{
 			p1.position = p1.previous_position;
 			p1.velocity = glm::vec3(0.0f);
 			p1.speed = 0.0f;
-			continue;
 		}
-		for (size_t i = 0; i < triangles.size(); i += 3)
+		else
 		{
-			glm::vec3 close = closest_on_triangle(triangles[i], triangles[i + 1], triangles[i + 2], center);
-			glm::vec3 d = center - close;
-			float len = glm::length(d);
-			if (len >= p1Rad || len == 0.0f)
-				continue;
-			glm::vec3 n = d / len;
-			center = close + n * p1Rad;
-			p1.velocity -= n * std::min(0.0f, glm::dot(p1.velocity, n));
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				if (p1.position[axis] != before_collision[axis])
+					p1.velocity[axis] = 0.0f;
+			}
 		}
-		p1.position = center - up;
 	}
 
 	for (auto &p : players)
