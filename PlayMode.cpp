@@ -14,41 +14,43 @@
 #include <random>
 #include <array>
 
-GLuint level_meshes_for_lit_color_texture_program = 0;
-Load<MeshBuffer> level_meshes(LoadTagDefault, []() -> MeshBuffer const *
-							  {
-	MeshBuffer const *ret = new MeshBuffer(data_path("room1.pnct"));
-	level_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
-	return ret; });
+GLuint meshes_for_lit_color_texture_program = 0;
+Load< MeshBuffer > meshes(LoadTagDefault, []() -> MeshBuffer const * {
+	MeshBuffer const *ret = new MeshBuffer(data_path("flieger-war.pnct"));
+	meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
+	return ret;
+});
 
-Load<Scene> level_scene(LoadTagDefault, []() -> Scene const *
-						{ return new Scene(data_path("room1.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
-										   {
-											   Mesh const &mesh = level_meshes->lookup(mesh_name);
+static void add_drawable(Scene &scene, Scene::Transform *transform, std::string const &mesh_name) {
+	if (mesh_name.ends_with("_BoundingBox")) return;
+	Mesh const &mesh = meshes->lookup(mesh_name);
+	scene.drawables.emplace_back(transform);
+	Scene::Drawable &drawable = scene.drawables.back();
+	drawable.pipeline = lit_color_texture_program_pipeline;
+	drawable.pipeline.vao = meshes_for_lit_color_texture_program;
+	drawable.pipeline.type = mesh.type;
+	drawable.pipeline.start = mesh.start;
+	drawable.pipeline.count = mesh.count;
+}
 
-											   scene.drawables.emplace_back(transform);
-											   Scene::Drawable &drawable = scene.drawables.back();
+Load< Scene > room_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("room.scene"), add_drawable); });
+Load< Scene > fly_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("fly.scene"), add_drawable); });
+Load< Scene > player_scene(LoadTagDefault, []() -> Scene const * { return new Scene(data_path("player.scene"), add_drawable); });
 
-											   drawable.pipeline = lit_color_texture_program_pipeline;
-
-											   drawable.pipeline.vao = level_meshes_for_lit_color_texture_program;
-											   drawable.pipeline.type = mesh.type;
-											   drawable.pipeline.start = mesh.start;
-											   drawable.pipeline.count = mesh.count; }); });
-
-PlayMode::PlayMode() : scene(*level_scene)
+PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene)
 {
-	for (auto &transform : scene.transforms)
-	{
-		// if (transform.name.starts_with("FlyInstance")) flies.push_back(&transform);
-		// if (transform.name.starts_with("HumanInstance")) humans.push_back(&transform);
-	}
-	camera = &scene.cameras.front();
+	for (auto &t : fly.transforms)
+		if (t.name == "Fly") fly_root = &t;
+	for (auto &t : player.transforms)
+		if (t.name == "Player") player_root = &t;
+	fly.cameras.front().transform->parent = fly_root;
+	player.cameras.front().transform->parent = player_root;
 }
 
 PlayMode::~PlayMode()
 {
-	if (server) SDL_KillProcess(server, true);
+	if (server)
+		SDL_KillProcess(server, true);
 }
 
 bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
@@ -56,7 +58,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	if (!game.started && evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 	{
 		int row = int(10.0f * evt.button.y / float(window_size.y));
-		if (screen == Menu && row == 4) screen = Join;
+		if (screen == Menu && row == 4)
+			screen = Join;
 		else if (screen == Menu && row == 5)
 		{
 			std::string path = data_path("server");
@@ -64,16 +67,22 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			server = SDL_CreateProcess(args, false);
 			screen = Lobby;
 		}
-		else if (screen == Menu && row == 6) Mode::set_current(nullptr);
-		else if (screen == Lobby && row == 4) controls.fly.downs += 1;
-		else if (screen == Lobby && row == 5) controls.human.downs += 1;
-		else if (screen == Lobby && row == 6) controls.start.downs += 1;
+		else if (screen == Menu && row == 6)
+			Mode::set_current(nullptr);
+		else if (screen == Lobby && row == 4)
+			controls.fly.downs += 1;
+		else if (screen == Lobby && row == 5)
+			controls.human.downs += 1;
+		else if (screen == Lobby && row == 6)
+			controls.start.downs += 1;
 		return true;
 	}
 	if (screen == Join && evt.type == SDL_EVENT_KEY_DOWN)
 	{
-		if (evt.key.key == SDLK_BACKSPACE && !ip.empty()) ip.pop_back();
-		else if (evt.key.key == SDLK_PERIOD || (evt.key.key >= SDLK_0 && evt.key.key <= SDLK_9)) ip += char(evt.key.key);
+		if (evt.key.key == SDLK_BACKSPACE && !ip.empty())
+			ip.pop_back();
+		else if (evt.key.key == SDLK_PERIOD || (evt.key.key >= SDLK_0 && evt.key.key <= SDLK_9))
+			ip += char(evt.key.key);
 		else if (evt.key.key == SDLK_RETURN)
 		{
 			try
@@ -81,7 +90,9 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				client = new Client(ip, "1337");
 				screen = Lobby;
 			}
-			catch (std::exception const &) {}
+			catch (std::exception const &)
+			{
+			}
 		}
 		return true;
 	}
@@ -122,7 +133,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.swat.pressed = true;
 			return true;
 		}
-		else if (evt.key.key == SDLK_ESCAPE) {
+		else if (evt.key.key == SDLK_ESCAPE)
+		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, false);
 			return true;
 		}
@@ -154,12 +166,16 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.swat.pressed = false;
 			return true;
 		}
-	} else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false) {
+	}
+	else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+	{
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false)
+		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, true);
 			return true;
 		}
-	} else if (evt.type == SDL_EVENT_MOUSE_MOTION)
+	}
+	else if (evt.type == SDL_EVENT_MOUSE_MOTION)
 	{
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true)
 		{
@@ -188,9 +204,12 @@ void PlayMode::update(float elapsed)
 			client = new Client("localhost", "1337");
 			ip = my_ip();
 		}
-		catch (std::exception const &) {}
+		catch (std::exception const &)
+		{
+		}
 	}
-	if (client == nullptr) return;
+	if (client == nullptr)
+		return;
 
 	// queue data for sending to server:
 	controls.send_controls_message(&client->connection);
@@ -207,7 +226,7 @@ void PlayMode::update(float elapsed)
 
 	// send/receive data:
 	client->poll([this](Connection *c, Connection::Event event)
-				{
+				 {
 		if (event == Connection::OnOpen) {
 			std::cout << "[" << c->socket << "] opened" << std::endl;
 		} else if (event == Connection::OnClose) {
@@ -227,31 +246,6 @@ void PlayMode::update(float elapsed)
 				throw e;
 			}
 		} }, 0.0);
-
-	if (!game.started) return;
-
-	for (auto t : flies)
-		t->scale = glm::vec3(0.0f);
-	for (auto t : humans)
-		t->scale = glm::vec3(0.0f);
-	uint32_t f = 0, h = 0;
-	for (auto const &p : game.players)
-	{
-		Scene::Transform *t;
-		if (p.role == Role::Human)
-		{
-			t = humans[h++];
-			t->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
-		}
-		else
-		{
-			t = flies[f++];
-			t->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(p.vert, glm::vec3(1.0f, 0.0f, 0.0f)) * glm::angleAxis(p.turnDip, glm::vec3(0.0f, 1.0f, 0.0f));
-		}
-		t->position = p.position;
-		if (p.alive)
-			t->scale = glm::vec3(1.0f);
-	}
 }
 
 void PlayMode::draw(glm::uvec2 const &drawable_size)
@@ -293,13 +287,31 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			row(3, std::string("You are: ") + (game.players.front().role == Role::Fly ? "Fly" : "Human"));
 			row(4, "Be Fly");
 			row(5, "Be Human");
-			if (server && game.count(Role::Fly) >= 1 && game.count(Role::Human) >= 1) row(6, "Start Game");
+			if (server && game.count(Role::Fly) >= 1 && game.count(Role::Human) >= 1)
+				row(6, "Start Game");
 		}
 		GL_ERRORS();
 		return;
 	}
 
+	auto place = [&](Player const &p) -> Scene &
+	{
+		if (p.role == Role::Human)
+		{
+			player_root->position = p.position;
+			player_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
+			player.cameras.front().transform->rotation = glm::angleAxis(glm::radians(90.0f) + p.vert, glm::vec3(1.0f, 0.0f, 0.0f));
+			return player;
+		}
+		fly_root->position = p.position;
+		fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(p.vert, glm::vec3(1.0f, 0.0f, 0.0f)) * glm::angleAxis(p.turnDip, glm::vec3(0.0f, 1.0f, 0.0f));
+		return fly;
+	};
+
+	Player const &me = game.players.front();
+	camera = &place(me).cameras.front();
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
+	glm::mat4 world_to_clip = camera->make_projection() * glm::mat4(camera->transform->make_local_from_world());
 
 	glUseProgram(lit_color_texture_program->program);
 	glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1);
@@ -313,7 +325,12 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
-	scene.draw(*camera);
+	scene.draw(world_to_clip);
+	for (auto const &p : game.players)
+	{
+		if (!p.alive || (&p == &me && p.role == Role::Human)) continue;
+		place(p).draw(world_to_clip);
+	}
 
 	GL_ERRORS();
 }

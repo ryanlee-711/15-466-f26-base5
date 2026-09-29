@@ -43,7 +43,9 @@ import math
 
 bpy.ops.wm.open_mainfile(filepath=infile)
 
-if collection_name:
+if collection_name in bpy.data.scenes:
+	collection = bpy.data.scenes[collection_name].collection
+elif collection_name:
 	if not collection_name in bpy.data.collections:
 		print("ERROR: Collection '" + collection_name + "' does not exist in scene.")
 		exit(1)

@@ -83,8 +83,7 @@ struct Game {
 	bool started = false;
 	uint32_t count(Role role) const;
 
-	struct Box { glm::vec3 min, max; };
-	std::vector< Box > boxes;
+	std::vector< glm::vec3 > triangles;
 
 	Game();
 

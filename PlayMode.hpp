@@ -38,7 +38,8 @@ struct PlayMode : Mode {
 
 	Scene scene;
 	Scene::Camera *camera = nullptr;
-	std::vector< Scene::Transform * > flies;
-	std::vector< Scene::Transform * > humans;
+	Scene fly, player;
+	Scene::Transform *fly_root = nullptr;
+	Scene::Transform *player_root = nullptr;
 
 };
