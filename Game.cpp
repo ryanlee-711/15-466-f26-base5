@@ -1,6 +1,8 @@
 #include "Game.hpp"
 
 #include "Connection.hpp"
+#include "Scene.hpp"
+#include "data_path.hpp"
 
 #include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
@@ -81,6 +83,10 @@ bool Player::Controls::recv_controls_message(Connection *connection_) {
 //-----------------------------------------
 
 Game::Game() : mt(0x15466666) {
+	Scene collision(data_path("room1-collision.scene"), nullptr);
+	for (auto const &t : collision.transforms) {
+		boxes.push_back(Box{ t.position - glm::abs(t.scale), t.position + glm::abs(t.scale) });
+	}
 }
 
 Player *Game::spawn_player() {
@@ -246,32 +252,15 @@ void Game::update(float elapsed) {
 			p2.velocity += 0.5f * delta_v12;
 			p1.velocity -= 0.5f * delta_v12;
 		}
-		//player/arena collisions:
-		if (p1.position.x < ArenaMin.x + p1Rad) {
-			p1.position.x = ArenaMin.x + p1Rad;
-			p1.velocity.x = std::abs(p1.velocity.x);
-		}
-		if (p1.position.x > ArenaMax.x - p1Rad) {
-			p1.position.x = ArenaMax.x - p1Rad;
-			p1.velocity.x =-std::abs(p1.velocity.x);
-		}
-		if (p1.position.y < ArenaMin.y + p1Rad) {
-			p1.position.y = ArenaMin.y + p1Rad;
-			p1.velocity.y = std::abs(p1.velocity.y);
-		}
-		if (p1.position.y > ArenaMax.y - p1Rad) {
-			p1.position.y = ArenaMax.y - p1Rad;
-			p1.velocity.y =-std::abs(p1.velocity.y);
-		}
-		if (p1.role == Role::Fly) {
-			if (p1.position.z < ArenaMin.z + p1Rad) {
-				p1.position.z = ArenaMin.z + p1Rad;
-				p1.velocity.z = std::abs(p1.velocity.z);
-			}
-			if (p1.position.z > ArenaMax.z - p1Rad) {
-				p1.position.z = ArenaMax.z - p1Rad;
-				p1.velocity.z =-std::abs(p1.velocity.z);
-			}
+		for (auto const &b : boxes) {
+			glm::vec3 close = glm::clamp(p1.position, b.min, b.max);
+			if (p1.role == Role::Human) close.z = p1.position.z;
+			glm::vec3 d = p1.position - close;
+			float len = glm::length(d);
+			if (len >= p1Rad || len == 0.0f) continue;
+			glm::vec3 n = d / len;
+			p1.position = close + n * p1Rad;
+			p1.velocity -= n * std::min(0.0f, glm::dot(p1.velocity, n));
 		}
 	}
 

@@ -5,6 +5,7 @@
 #include <string>
 #include <list>
 #include <random>
+#include <vector>
 
 struct Connection;
 
@@ -79,6 +80,9 @@ struct Game {
 	float time = 0.0f;
 	float timeLimit = 300.0f;
 	bool humanWon = false;
+
+	struct Box { glm::vec3 min, max; };
+	std::vector< Box > boxes;
 
 	Game();
 

@@ -114,6 +114,7 @@ for obj in bpy.data.objects:
 		bpy.ops.object.mode_set(mode='OBJECT') #get out of edit mode (just in case)
 
 	#select the object and make it the active object:
+	bpy.context.window.scene = obj.users_scene[0]
 	bpy.ops.object.select_all(action='DESELECT')
 	obj.select_set(True)
 	bpy.context.view_layer.objects.active = obj
