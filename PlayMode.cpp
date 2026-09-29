@@ -16,7 +16,7 @@
 
 GLuint meshes_for_lit_color_texture_program = 0;
 Load<MeshBuffer> meshes(LoadTagDefault, []() -> MeshBuffer const *
-						{
+												{
 	MeshBuffer const *ret = new MeshBuffer(data_path("flieger-war.pnct"));
 	meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
 	return ret; });
@@ -36,11 +36,11 @@ static void add_drawable(Scene &scene, Scene::Transform *transform, std::string 
 }
 
 Load<Scene> room_scene(LoadTagDefault, []() -> Scene const *
-					   { return new Scene(data_path("room.scene"), add_drawable); });
+											 { return new Scene(data_path("room.scene"), add_drawable); });
 Load<Scene> fly_scene(LoadTagDefault, []() -> Scene const *
-					  { return new Scene(data_path("fly.scene"), add_drawable); });
+											{ return new Scene(data_path("fly.scene"), add_drawable); });
 Load<Scene> player_scene(LoadTagDefault, []() -> Scene const *
-						 { return new Scene(data_path("player.scene"), add_drawable); });
+												 { return new Scene(data_path("player.scene"), add_drawable); });
 
 PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene)
 {
@@ -188,8 +188,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true)
 		{
 			glm::vec2 motion = glm::vec2(
-				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y));
+					evt.motion.xrel / float(window_size.y),
+					-evt.motion.yrel / float(window_size.y));
 			controls.horiz += -motion.x * camera->fovy * mouse_sen;
 			controls.vert += motion.y * camera->fovy * mouse_sen;
 			controls.vert = glm::clamp(controls.vert, -1.4f, 1.4f);
@@ -232,7 +232,7 @@ void PlayMode::update(float elapsed)
 
 	// send/receive data:
 	client->poll([this](Connection *c, Connection::Event event)
-				 {
+							 {
 		if (event == Connection::OnOpen) {
 			std::cout << "[" << c->socket << "] opened" << std::endl;
 		} else if (event == Connection::OnClose) {
@@ -263,10 +263,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		glClear(GL_COLOR_BUFFER_BIT);
 		glDisable(GL_DEPTH_TEST);
 		DrawLines lines(glm::mat4(
-			1.0f / aspect, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f));
+				1.0f / aspect, 0.0f, 0.0f, 0.0f,
+				0.0f, 1.0f, 0.0f, 0.0f,
+				0.0f, 0.0f, 1.0f, 0.0f,
+				0.0f, 0.0f, 0.0f, 1.0f));
 		auto row = [&](int r, std::string const &text)
 		{
 			lines.draw_text(text, glm::vec3(-0.8f, 0.85f - 0.2f * r, 0.0f), glm::vec3(0.1f, 0.0f, 0.0f), glm::vec3(0.0f, 0.1f, 0.0f));
