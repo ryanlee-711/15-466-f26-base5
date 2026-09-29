@@ -11,8 +11,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
-#include <ifaddrs.h>
-#include <arpa/inet.h>
 #include <random>
 #include <array>
 
@@ -37,23 +35,6 @@ Load<Scene> level_scene(LoadTagDefault, []() -> Scene const *
 											   drawable.pipeline.type = mesh.type;
 											   drawable.pipeline.start = mesh.start;
 											   drawable.pipeline.count = mesh.count; }); });
-
-static std::string my_ip()
-{
-	std::string ret;
-	ifaddrs *addrs;
-	getifaddrs(&addrs);
-	for (ifaddrs *a = addrs; a; a = a->ifa_next)
-	{
-		if (a->ifa_addr && a->ifa_addr->sa_family == AF_INET)
-		{
-			std::string s = inet_ntoa(((sockaddr_in *)a->ifa_addr)->sin_addr);
-			if (!s.starts_with("127.")) ret = s;
-		}
-	}
-	freeifaddrs(addrs);
-	return ret;
-}
 
 PlayMode::PlayMode() : scene(*level_scene)
 {
@@ -81,7 +62,6 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			std::string path = data_path("server");
 			char const *args[] = {path.c_str(), "1337", nullptr};
 			server = SDL_CreateProcess(args, false);
-			ip = my_ip();
 			screen = Lobby;
 		}
 		else if (screen == Menu && row == 6) Mode::set_current(nullptr);
@@ -198,6 +178,7 @@ void PlayMode::update(float elapsed)
 		try
 		{
 			client = new Client("localhost", "1337");
+			ip = my_ip();
 		}
 		catch (std::exception const &) {}
 	}

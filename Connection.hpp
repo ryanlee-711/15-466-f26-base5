@@ -127,3 +127,5 @@ struct Client {
 	std::list< Connection > connections; //will only ever contain exactly one connection
 	Connection &connection; //reference to the only connection in the connections list
 };
+
+std::string my_ip();
