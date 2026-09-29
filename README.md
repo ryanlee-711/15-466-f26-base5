@@ -1,10 +1,19 @@
-# (TODO: your game's title)
+Flieger War
 
-Author: (TODO: your name)
+Authors: Ryan Lee, Bernardo Miranda, Robert May
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: The game is a about a battle between flies and humans. The humans are trying to kill all the flies
+        while the flies are trying to run away and survive. Flieger War's unique take on a survival game brings
+        new life and comedy to the genre.
 
-Networking: (TODO: How does your game implement client/server multiplayer? What messages are transmitted? Where in the code?)
+Networking: Our game implements a server authoritative system. Clients only send their inputs and then the server
+            simulates all the movement, collisions, and win condition then broadcasts the current game state
+            to every Client. We implemented this by improving the base code to handle larger messages and controls,
+            and also added a role to each Player state to differentiate the flies from the humans.
+            Each role is treated differently in update and other functions to allow for one Player state struct
+            for two different types of players. The two messages transmitted are the C2S_Controls messages
+            which hold the state of each button and the S2C_State messages which hold the game-wide state.
+            The main part the code is in Game.cpp, Game.hpp, server.cpp, client.cpp, and PlayMode.cpp.
 
 Screen Shot:
 
@@ -12,9 +21,26 @@ Screen Shot:
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+You can choose to play as a human or a fly.
+As a human, your goal is to kill all the flies buzzing around.
+As a fly, your goal is to survive 5 min without dying.
 
-Sources: (TODO: list a source URL for any assets you did not create yourself. Make sure you have a license for the asset.)
+Human Controls:
+W - Move Forward
+A - Move Left
+S - Move Back
+D - Move Right
+Space - Swat
+
+Fly Controls:
+W - Move Forward
+A - Move Left
+S - Move Back
+D - Move Right
+Space - Fly Up
+Shift - Fly Down
+
+Sources: N/A
 
 This game was built with [NEST](NEST.md).
 
