@@ -122,6 +122,10 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.swat.pressed = true;
 			return true;
 		}
+		else if (evt.key.key == SDLK_ESCAPE) {
+			SDL_SetWindowRelativeMouseMode(Mode::window, false);
+			return true;
+		}
 	}
 	else if (evt.type == SDL_EVENT_KEY_UP)
 	{
@@ -150,8 +154,12 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.swat.pressed = false;
 			return true;
 		}
-	}
-	else if (evt.type == SDL_EVENT_MOUSE_MOTION)
+	} else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false) {
+			SDL_SetWindowRelativeMouseMode(Mode::window, true);
+			return true;
+		}
+	} else if (evt.type == SDL_EVENT_MOUSE_MOTION)
 	{
 		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true)
 		{
