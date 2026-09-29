@@ -43,7 +43,8 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 		if (t.name == "Fly") fly_root = &t;
 	for (auto &t : player.transforms)
 		if (t.name == "Player") player_root = &t;
-	fly.cameras.front().transform->parent = fly_root;
+	fly_cam_offset = fly.cameras.front().transform->position;
+	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
 }
 
@@ -129,8 +130,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		}
 		else if (evt.key.key == SDLK_SPACE)
 		{
-			controls.swat.downs += 1;
-			controls.swat.pressed = true;
+			controls.space.downs += 1;
+			controls.space.pressed = true;
 			return true;
 		}
 		else if (evt.key.key == SDLK_ESCAPE)
@@ -163,7 +164,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		}
 		else if (evt.key.key == SDLK_SPACE)
 		{
-			controls.swat.pressed = false;
+			controls.space.pressed = false;
 			return true;
 		}
 	}
@@ -217,7 +218,7 @@ void PlayMode::update(float elapsed)
 	controls.right.downs = 0;
 	controls.up.downs = 0;
 	controls.down.downs = 0;
-	controls.swat.downs = 0;
+	controls.space.downs = 0;
 	controls.fly.downs = 0;
 	controls.human.downs = 0;
 	controls.start.downs = 0;
@@ -303,6 +304,10 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		}
 		fly_root->position = p.position;
 		fly_root->rotation = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f)) * glm::angleAxis(p.vert, glm::vec3(1.0f, 0.0f, 0.0f)) * glm::angleAxis(p.turnDip, glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::quat yaw = glm::angleAxis(p.horiz, glm::vec3(0.0f, 0.0f, 1.0f));
+		Scene::Transform *cam = fly.cameras.front().transform;
+		cam->position = p.position + yaw * fly_cam_offset;
+		cam->rotation = yaw * fly_cam_rotation;
 		return fly;
 	};
 
