@@ -486,6 +486,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		};
 		if (screen == Menu)
 		{
+			row(2, "FLIEGER WAR");
 			row(4, "Join Game");
 			row(5, "Host Game");
 			row(6, "Quit");
