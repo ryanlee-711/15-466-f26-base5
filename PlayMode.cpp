@@ -70,8 +70,14 @@ Load<Scene> player_scene(LoadTagDefault, []() -> Scene const *
 PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene)
 {
 	for (auto &t : fly.transforms)
+	{
 		if (t.name == "Fly")
 			fly_root = &t;
+		if (t.name == "Wing_L")
+			wing_l = &t;
+		if (t.name == "Wing_R")
+			wing_r = &t;
+	}
 	for (auto &t : player.transforms)
 	{
 		if (t.name == "Player")
@@ -86,6 +92,8 @@ PlayMode::PlayMode() : scene(*room_scene), fly(*fly_scene), player(*player_scene
 	arm_base = arm->rotation;
 	leg_l_base = leg_l->rotation;
 	leg_r_base = leg_r->rotation;
+	wing_l_base = wing_l->rotation;
+	wing_r_base = wing_r->rotation;
 	fly_cam_offset = fly.cameras.front().transform->position;
 	fly_cam_rotation = fly.cameras.front().transform->rotation;
 	player.cameras.front().transform->parent = player_root;
@@ -511,6 +519,11 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 				break;
 			cam->position = p.position + yaw * (t * fly_cam_offset);
 		}
+
+		float flap = std::sin(walk_time * 50.0f) * 0.5f * std::min(1.0f, glm::length(p.velocity) / Game::FlySpeed);
+		wing_l->rotation = glm::angleAxis(flap, glm::vec3(1.0f, 0.0f, 0.0f)) * wing_l_base;
+		wing_r->rotation = glm::angleAxis(flap, glm::vec3(1.0f, 0.0f, 0.0f)) * wing_r_base;
+
 		return fly;
 	};
 

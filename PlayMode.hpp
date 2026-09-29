@@ -55,7 +55,10 @@ struct PlayMode : Mode
 	glm::quat arm_base;
 	Scene::Transform *leg_l = nullptr;
 	Scene::Transform *leg_r = nullptr;
+	Scene::Transform *wing_l = nullptr;
+	Scene::Transform *wing_r = nullptr;
 	glm::quat leg_l_base, leg_r_base;
+	glm::quat wing_l_base, wing_r_base;
 	float walk_time = 0.0f;
 	glm::vec3 fly_cam_offset;
 	glm::quat fly_cam_rotation;
